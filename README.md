@@ -43,6 +43,25 @@ transmission, VIN, photos, date d'acquisition — et relevés kilométriques
   liée) ;
 - rappels : échéances par date ou par kilométrage, entretiens en retard.
 
+### Scan de documents par OCR (100 % local)
+
+- **Carte grise → fiche véhicule** : photographiez le certificat
+  d'immatriculation ; les repères officiels lettrés sont détectés avec leur
+  correspondance exacte — **A** = immatriculation, **B** = 1re immatriculation,
+  **D.1** = marque, **D.3** = modèle, **E = VIN (17 caractères)**, **P.1** =
+  cylindrée, **P.3** = carburant (nomenclature européenne 1999/37/CE) ;
+- **Facture → fiche d'intervention** : date, garage, montant TTC, kilométrage
+  et lignes de facture sont proposés à l'intégration ;
+- principe de transparence : **l'OCR propose, l'utilisateur valide** — chaque
+  valeur est présentée avec son repère officiel, son niveau de confiance et la
+  mention « à vérifier » ; les données personnelles (titulaire, adresse) sont
+  désélectionnées par défaut ; les fragments non interprétés sont affichés,
+  jamais masqués ;
+- **confidentialité** : reconnaissance réalisée dans le navigateur
+  (`tesseract.js`, français) — la photo **ne quitte jamais l'appareil**
+  (essentiel pour la carte grise et les factures). Les données linguistiques
+  sont téléchargées à la première utilisation puis mises en cache.
+
 ### Rapport de vente PDF (serveur, `@react-pdf/renderer`)
 
 Parcours : **Véhicule → Générer un rapport de vente → Vérifier les données →
@@ -76,8 +95,9 @@ Options → Prévisualiser → Générer et télécharger**.
 | Application | **Next.js 14** (App Router) + **TypeScript** + **Tailwind CSS** |
 | Validation | **Zod** (schéma strict du rapport) |
 | PDF | **@react-pdf/renderer** (génération **côté serveur**) |
+| OCR | **tesseract.js** (lecture de carte grise / factures **dans le navigateur**, sans serveur ni clé API) |
 | Données | Mode **démo local** (localStorage) + adaptateur **Supabase** (Auth, PostgreSQL, Storage privé) |
-| Tests | **Vitest** (42 tests unitaires et d'intégration) |
+| Tests | **Vitest** (61 tests unitaires et d'intégration) |
 | Licence | **GPL-3.0** |
 
 > Le mode **démo** est actif par défaut : aucune configuration n'est nécessaire,
@@ -102,7 +122,7 @@ Autres commandes :
 ```bash
 npm run build      # build de production
 npm start          # serveur de production
-npm test           # 42 tests Vitest
+npm test           # 61 tests Vitest
 npm run typecheck  # vérification TypeScript
 ```
 
@@ -162,12 +182,14 @@ POST /api/vehicles/{vehicleId}/reports/sale
 npm test
 ```
 
-42 tests couvrant notamment : présence/absence des sections sélectionnées,
+61 tests couvrant notamment : présence/absence des sections sélectionnées,
 pagination d'un historique volumineux (60 interventions), gestion des
 kilométrages inconnus ou incohérents, exactitude des totaux et
 remboursements, masquage des données personnelles (y compris factures),
 signalement des pièces jointes manquantes, validation et reproductibilité du
-PDF.
+PDF, lecture OCR de la carte grise (repères A/B/D.1/D.3/**E=VIN**/P.3, dates,
+immatriculations, données personnelles signalées) et des factures (montants
+TTC/HT/TVA, kilométrage, lignes) sans jamais inventer de donnée.
 
 ---
 
@@ -175,6 +197,7 @@ PDF.
 
 - ✅ Carnet d'entretien complet (interventions, pièces, coûts, documents)
 - ✅ Pannes, réparations, dépenses, rappels
+- ✅ Scan OCR local : carte grise → fiche véhicule, facture → intervention
 - ✅ Rapport de vente PDF 8 sections + confidentialité + anomalies + instantané
 - ✅ Migration SQL Supabase (RLS, storage privé, suppression RGPD)
 - ⬜ Activation de l'adaptateur Supabase (Auth + données réelles)

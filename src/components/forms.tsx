@@ -3,7 +3,7 @@
 // Formulaires de saisie (véhicule, intervention, panne, dépense, justificatif,
 // rappel, relevé kilométrique).
 
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type {
   Carburant,
   DocumentEntry,
@@ -60,14 +60,27 @@ const emptyVehicle: VehicleFormValues = {
 
 export function VehicleForm({
   initial,
+  prefill,
+  prefillToken,
   onSubmit,
   onCancel,
 }: {
   initial?: VehicleFormValues
+  /** Pré-remplissage partiel (ex. scan carte grise) — fusionné sans écraser la saisie en cours */
+  prefill?: Partial<VehicleFormValues>
+  /** Jeton incrémenté à chaque « Intégrer » pour rejouer la fusion */
+  prefillToken?: number
   onSubmit: (v: VehicleFormValues) => void
   onCancel: () => void
 }) {
   const [v, setV] = useState<VehicleFormValues>(initial ?? emptyVehicle)
+  const seenPrefill = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (prefill && prefillToken !== undefined && prefillToken !== seenPrefill.current) {
+      seenPrefill.current = prefillToken
+      setV((x) => ({ ...x, ...prefill }))
+    }
+  }, [prefill, prefillToken])
   const set = <K extends keyof VehicleFormValues>(k: K, val: VehicleFormValues[K]) => setV((x) => ({ ...x, [k]: val }))
   const valid = v.marque.trim() && v.modele.trim()
 
@@ -161,12 +174,26 @@ export function ServiceRecordForm({
   vehicleId,
   initial,
   initialItems,
+  prefill,
+  prefillToken,
   onSubmit,
   onCancel,
 }: {
   vehicleId: string
   initial?: ServiceRecord
   initialItems?: ServiceRecordItem[]
+  /** Pré-remplissage partiel (ex. scan de facture) */
+  prefill?: {
+    date?: string
+    kilometrage?: number
+    categorie?: ServiceCategory
+    titre?: string
+    garage?: string
+    coutTotal?: number
+    description?: string
+    items?: Array<{ kind: ItemKind; libelle: string; prixTotal?: number }>
+  }
+  prefillToken?: number
   onSubmit: (v: ServiceRecordFormValues) => void
   onCancel: () => void
 }) {
@@ -187,6 +214,17 @@ export function ServiceRecordForm({
   const [items, setItems] = useState<Array<Omit<ServiceRecordItem, 'id' | 'serviceRecordId'>>>(
     initialItems?.map((i) => ({ kind: i.kind, libelle: i.libelle, reference: i.reference, marque: i.marque, quantite: i.quantite, prixUnitaire: i.prixUnitaire, prixTotal: i.prixTotal })) ?? [],
   )
+  const seenPrefill = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (prefill && prefillToken !== undefined && prefillToken !== seenPrefill.current) {
+      seenPrefill.current = prefillToken
+      const { items: prefillItems, ...recordPart } = prefill
+      setR((x) => ({ ...x, ...recordPart }))
+      if (prefillItems && prefillItems.length > 0) {
+        setItems(prefillItems.map((i) => ({ kind: i.kind, libelle: i.libelle, quantite: 1, prixTotal: i.prixTotal })))
+      }
+    }
+  }, [prefill, prefillToken])
   const set = <K extends keyof typeof r>(k: K, val: (typeof r)[K]) => setR((x) => ({ ...x, [k]: val }))
 
   return (

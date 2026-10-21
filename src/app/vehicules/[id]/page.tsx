@@ -39,6 +39,8 @@ import {
   ServiceRecordForm,
   type ServiceRecordFormValues,
 } from '@/components/forms'
+import { ScanPhotoButton, FactureReview } from '@/components/scan'
+import { parseFacture, type FactureScan, type ServicePrefill } from '@/lib/ocr/facture'
 
 const TABS = [
   { id: 'entretiens', label: 'Carnet d’entretien' },
@@ -62,6 +64,8 @@ export default function VehicleDetailPage() {
   const [documentModal, setDocumentModal] = useState(false)
   const [reminderModal, setReminderModal] = useState(false)
   const [readingModal, setReadingModal] = useState(false)
+  const [factureScan, setFactureScan] = useState<FactureScan | null>(null)
+  const [servicePrefill, setServicePrefill] = useState<{ values: ServicePrefill; token: number } | null>(null)
   const [confirm, setConfirm] = useState<{ kind: string; id: string; label: string } | null>(null)
 
   const vehicle = useMemo(
@@ -174,7 +178,13 @@ export default function VehicleDetailPage() {
         <section>
           <SectionTitle
             action={
-              <Button onClick={() => setServiceModal({ open: true })}>
+              <Button
+                onClick={() => {
+                  setFactureScan(null)
+                  setServicePrefill(null)
+                  setServiceModal({ open: true })
+                }}
+              >
                 <Plus className="h-4 w-4" />
                 Ajouter une intervention
               </Button>
@@ -190,7 +200,18 @@ export default function VehicleDetailPage() {
               icon={<Wrench className="h-6 w-6" />}
               title="Aucune intervention enregistrée"
               description="Enregistrez vidanges, révisions et réparations pour constituer l'historique — matière première du rapport de vente."
-              action={<Button onClick={() => setServiceModal({ open: true })}><Plus className="h-4 w-4" />Ajouter une intervention</Button>}
+              action={
+                <Button
+                  onClick={() => {
+                    setFactureScan(null)
+                    setServicePrefill(null)
+                    setServiceModal({ open: true })
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Ajouter une intervention
+                </Button>
+              }
             />
           ) : (
             <div className="space-y-3">
@@ -574,20 +595,46 @@ export default function VehicleDetailPage() {
         title={serviceModal.editing ? 'Modifier l’intervention' : 'Ajouter une intervention'}
         wide
       >
-        <ServiceRecordForm
-          vehicleId={vehicleId}
-          initial={serviceModal.editing}
-          initialItems={serviceModal.editing ? db.serviceRecordItems.filter((i) => i.serviceRecordId === serviceModal.editing!.id) : undefined}
-          onSubmit={(v: ServiceRecordFormValues) => {
-            if (serviceModal.editing) {
-              store.updateServiceRecord({ ...serviceModal.editing, ...v.record }, v.items)
-            } else {
-              store.addServiceRecord({ ...v.record, vehicleId }, v.items)
-            }
-            setServiceModal({ open: false })
-          }}
-          onCancel={() => setServiceModal({ open: false })}
-        />
+        <div className="space-y-4">
+          {!serviceModal.editing &&
+            (factureScan ? (
+              <FactureReview
+                scan={factureScan}
+                onIntegrate={(prefill) => {
+                  setServicePrefill({ values: prefill, token: Date.now() })
+                  setFactureScan(null)
+                }}
+                onCancel={() => setFactureScan(null)}
+              />
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                <p className="mb-2 text-xs text-slate-600">
+                  Photographiez la <strong>facture</strong> : date, garage, montant TTC, kilométrage et lignes de facture
+                  sont proposés à votre validation. Traitement 100 % local.
+                </p>
+                <ScanPhotoButton
+                  label="Scanner la facture (photo)"
+                  onText={(r) => setFactureScan(parseFacture(r.text))}
+                />
+              </div>
+            ))}
+          <ServiceRecordForm
+            vehicleId={vehicleId}
+            initial={serviceModal.editing}
+            initialItems={serviceModal.editing ? db.serviceRecordItems.filter((i) => i.serviceRecordId === serviceModal.editing!.id) : undefined}
+            prefill={servicePrefill?.values}
+            prefillToken={servicePrefill?.token}
+            onSubmit={(v: ServiceRecordFormValues) => {
+              if (serviceModal.editing) {
+                store.updateServiceRecord({ ...serviceModal.editing, ...v.record }, v.items)
+              } else {
+                store.addServiceRecord({ ...v.record, vehicleId }, v.items)
+              }
+              setServiceModal({ open: false })
+            }}
+            onCancel={() => setServiceModal({ open: false })}
+          />
+        </div>
       </Modal>
 
       <Modal open={faultModal.open} onClose={() => setFaultModal({ open: false })} title={faultModal.editing ? 'Modifier la panne' : 'Signaler une panne'} wide>

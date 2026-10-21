@@ -10,14 +10,25 @@ import { formatEuro, formatKm } from '@/lib/domain/format'
 import { computeExpenseTotals } from '@/lib/domain/totals'
 import { Badge, Button, Card, EmptyState, Modal, SectionTitle } from '@/components/ui'
 import { VehicleForm, type VehicleFormValues } from '@/components/forms'
+import { ScanPhotoButton, CarteGriseReview } from '@/components/scan'
+import { parseCarteGrise, type CarteGriseScan, type VehiclePrefill } from '@/lib/ocr/carte-grise'
 
 export default function VehiclesPage() {
   const { db, ready, addVehicle, updateVehicle, removeVehicle } = useStore()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Vehicle | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Vehicle | null>(null)
+  const [carteScan, setCarteScan] = useState<CarteGriseScan | null>(null)
+  const [vehiclePrefill, setVehiclePrefill] = useState<{ values: Partial<VehicleFormValues>; token: number } | null>(null)
 
   if (!ready) return <p className="text-sm text-slate-500">Chargement…</p>
+
+  const openNew = () => {
+    setEditing(null)
+    setCarteScan(null)
+    setVehiclePrefill(null)
+    setFormOpen(true)
+  }
 
   const handleSubmit = (values: VehicleFormValues) => {
     if (editing) {
@@ -39,10 +50,7 @@ export default function VehiclesPage() {
           </p>
         </div>
         <Button
-          onClick={() => {
-            setEditing(null)
-            setFormOpen(true)
-          }}
+          onClick={openNew}
         >
           <Plus className="h-4 w-4" />
           Ajouter un véhicule
@@ -56,10 +64,7 @@ export default function VehiclesPage() {
           description="Ajoutez votre voiture pour démarrer le carnet d'entretien et le rapport de vente."
           action={
             <Button
-              onClick={() => {
-                setEditing(null)
-                setFormOpen(true)
-              }}
+              onClick={openNew}
             >
               <Plus className="h-4 w-4" />
               Ajouter un véhicule
@@ -173,14 +178,43 @@ export default function VehiclesPage() {
         title={editing ? 'Modifier le véhicule' : 'Ajouter un véhicule'}
         wide
       >
-        <VehicleForm
-          initial={editing ? { ...editing } : undefined}
-          onSubmit={handleSubmit}
-          onCancel={() => {
-            setFormOpen(false)
-            setEditing(null)
-          }}
-        />
+        <div className="space-y-4">
+          {!editing && (
+            carteScan ? (
+              <CarteGriseReview
+                scan={carteScan}
+                onIntegrate={(prefill: VehiclePrefill) => {
+                  setVehiclePrefill({ values: prefill as Partial<VehicleFormValues>, token: Date.now() })
+                  setCarteScan(null)
+                }}
+                onCancel={() => setCarteScan(null)}
+              />
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                <p className="mb-2 text-xs text-slate-600">
+                  Photographiez la <strong>carte grise</strong> : les repères officiels (A = immatriculation, B = 1re
+                  immatriculation, D.1 = marque, D.3 = modèle, <strong>E = VIN</strong>, P.3 = carburant…) sont détectés
+                  et proposés à votre validation. Traitement 100 % local.
+                </p>
+                <ScanPhotoButton
+                  label="Scanner la carte grise (photo)"
+                  onText={(r) => setCarteScan(parseCarteGrise(r.text))}
+                />
+              </div>
+            )
+          )}
+          <VehicleForm
+            initial={editing ? { ...editing } : undefined}
+            prefill={vehiclePrefill?.values}
+            prefillToken={vehiclePrefill?.token}
+            onSubmit={handleSubmit}
+            onCancel={() => {
+              setFormOpen(false)
+              setEditing(null)
+              setCarteScan(null)
+            }}
+          />
+        </div>
       </Modal>
 
       {/* Confirmation suppression */}
