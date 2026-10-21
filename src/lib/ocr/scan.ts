@@ -14,10 +14,19 @@ async function getWorker(): Promise<import('tesseract.js').Worker> {
   if (!workerPromise) {
     workerPromise = (async () => {
       const { createWorker } = await import('tesseract.js')
-      // Données linguistiques françaises (chargées une seule fois, mises en cache)
-      const worker = await createWorker('fra')
-      await worker.setParameters({ preserve_interword_spaces: '1' })
-      return worker
+      // Modèle linguistique « best_int » (le plus précis) — même modèle que la
+      // suite de tests. Téléchargé une fois puis mis en cache par le navigateur.
+      const LANG_BEST = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/fra/4.0.0_best_int'
+      try {
+        const worker = await createWorker('fra', 1, { langPath: LANG_BEST })
+        await worker.setParameters({ preserve_interword_spaces: '1' })
+        return worker
+      } catch {
+        // Repli : modèle par défaut si le CDN est inaccessible
+        const worker = await createWorker('fra')
+        await worker.setParameters({ preserve_interword_spaces: '1' })
+        return worker
+      }
     })()
   }
   return workerPromise

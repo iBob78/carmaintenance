@@ -87,10 +87,11 @@ export function CarteGriseReview({
   onIntegrate: (prefill: VehiclePrefill, selected: ScanField[]) => void
   onCancel: () => void
 }) {
-  // Sélection par défaut : champs exploitables, non sensibles, confiance ≥ moyenne
+  // Sélection par défaut : uniquement les valeurs « haute » confiance,
+  // exploitables et non sensibles — le reste demande un clic explicite.
   const [selection, setSelection] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
-      scan.fields.map((f) => [f.code + f.label, Boolean(f.target) && !f.sensitive && f.confidence !== 'faible']),
+      scan.fields.map((f) => [f.code + f.label, Boolean(f.target) && !f.sensitive && f.confidence === 'haute']),
     ),
   )
   const selectedFields = scan.fields.filter((f) => selection[f.code + f.label])

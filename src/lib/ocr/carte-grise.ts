@@ -216,20 +216,58 @@ export function normalizeCarburant(raw: string): Carburant | undefined {
 
 const sansAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
+/** Retire les parasites de bord OCR (« DUPONT ] », « CI 43 CI = »). */
+function nettoieBords(v: string): string {
+  return v
+    .replace(/^[|»«•)\]}©=;:\s]+/, '')
+    .replace(/[|»«•)\]}©=;:\s]+$/, '')
+    .trim()
+}
+
 /** Retire le libellé officiel du début d'une valeur OCR (« E VIN VF1… » → « VF1… »). */
 function stripLabel(rest: string, label: string): string {
   let s = rest.replace(/^[:.\-\s]+/, '')
   const mots = sansAccents(label).split(/[^a-z0-9]+/).filter((w) => w.length >= 3)
   for (const mot of mots) {
     const ref = sansAccents(s)
-    if (ref.startsWith(mot)) s = s.slice(mot.length)
+    // Le mot du libellé n'est retiré que s'il forme un mot à part entière
+    // (« Marque MERCEDES » → « MERCEDES ») — jamais au milieu d'un mot :
+    // « MARQUES » ne doit pas devenir « S ».
+    if (ref === mot) return s
+    if (ref.startsWith(mot) && /^[:.\-\s]/.test(s.slice(mot.length))) s = s.slice(mot.length)
     else break
   }
   return s.replace(/^[:.\-\s]+/, '').trim()
 }
 
+// Mots qui sont des LIBELLÉS du document (légendes, en-têtes), jamais des valeurs
+const MOTS_LIBELLE = new Set([
+  'MARQUE', 'MARQUES', 'MODELE', 'MODELES', 'VERSION', 'VARIANTE', 'TYPE',
+  'DENOMINATION', 'COMMERCIALE', 'NOM', 'PRENOM', 'PRENOMS', 'ADRESSE',
+  'NUMERO', 'IDENTIFICATION', 'IMMATRICULATION', 'CARBURANT', 'ENERGIE',
+  'PUISSANCE', 'CYLINDREE', 'MASSE', 'MASSES', 'POIDS', 'PLACE', 'PLACES',
+  'CONTROLE', 'TECHNIQUE', 'MENTION', 'MENTIONS', 'PARTICULIERE', 'GENRE',
+  'CATEGORIE', 'CARROSSERIE', 'TAXE', 'TAXES', 'DATE', 'TITULAIRE',
+  'PROPRIETAIRE', 'LOCATAIRE', 'SPECIMEN', 'CERTIFICAT', 'RECEPTION',
+  'CATEGORIE', 'VALIDITE', 'PERIODE', 'EMISSIONS', 'SONORE', 'VITESSE',
+])
+
+/** Une valeur entièrement composée de mots-libellés n'est pas une valeur. */
+export function estLibelle(v: string): boolean {
+  const mots = v
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean)
+  return mots.length > 0 && mots.every((m) => MOTS_LIBELLE.has(m))
+}
+
 function classify(spec: FieldSpec, raw: string): Pick<ScanField, 'value' | 'normalized' | 'confidence' | 'note'> {
-  const value = raw.trim()
+  const value = nettoieBords(raw) || raw.trim()
+  if (estLibelle(value)) {
+    return { value, confidence: 'faible', note: 'Libellé du document détecté — pas une valeur, vérifier sur le document' }
+  }
   switch (spec.kind) {
     case 'date': {
       const iso = normalizeDate(value)
@@ -290,8 +328,11 @@ function classify(spec: FieldSpec, raw: string): Pick<ScanField, 'value' | 'norm
     }
     default: {
       // Valeur texte illisible (bruit OCR pur : « â ; », « =. ») → jamais fiable
+      const mots = value.split(/[^A-Za-zÀ-ÿ0-9]+/).filter(Boolean)
       const alnum = (value.match(/[A-Za-zÀ-ÿ0-9]/g) ?? []).length
-      if (alnum < 2) {
+      const plusLong = Math.max(0, ...mots.map((x) => x.length))
+      // Des mots tous très courts (« CI 43 CI ») : illisible, jamais validé.
+      if (alnum < 2 || (mots.length >= 2 && plusLong < 3)) {
         return { value, confidence: 'faible', note: 'Valeur illisible sur le document' }
       }
       return { value, confidence: 'moyenne' }
@@ -342,7 +383,7 @@ export function parseCarteGrise(text: string): CarteGriseScan {
     matches.forEach((m, i) => {
       const debut = (m.index ?? 0) + m[0].length
       const fin = i + 1 < matches.length ? (matches[i + 1].index ?? ligne.length) : ligne.length
-      const brut = ligne.slice(debut, fin).trim().replace(/[|»«•]+\s*$/, '').trim()
+      const brut = ligne.slice(debut, fin).trim().replace(/[|»«•\)\]\}©]+\s*$/, '').trim()
       out.push({ code: codeKey(m[1]), valeur: brut })
     })
     return out
@@ -367,7 +408,14 @@ export function parseCarteGrise(text: string): CarteGriseScan {
           break
         }
       } else {
-        val = stripLabel(val, spec.label)
+        // Un libellé (« MARQUES ») n'est jamais « nettoyé » en déchet (« S ») :
+        // on le garde entier et classify le marque comme libellé. Une valeur
+        // réduite à rien (« = ») est conservée : signalée illisible, jamais masquée.
+        const nettoye = nettoieBords(val)
+        if (nettoye) {
+          val = nettoye
+          if (!estLibelle(val)) val = stripLabel(val, spec.label) || val
+        }
       }
       if (!val) continue
       codesVus.add(code)
@@ -442,19 +490,35 @@ export function parseCarteGrise(text: string): CarteGriseScan {
     }
   }
   if (!mrzVin) {
-    // Sans ancre : uniquement si UN SEUL VIN plausible figure dans les bandes
-    const candidats = new Set<string>()
-    for (const l of runs) {
+    // Sans ancre : les lignes « pleine valeur » (coupon détachable) sont bien
+    // plus fiables que les fenêtres glissantes dans les longues bandes — on ne
+    // retient un candidat que s'il est UNIQUE (jamais deviné entre plusieurs).
+    const pleines = new Set<string>()
+    const fenetres = new Set<string>()
+    for (const l of lignes) {
+      // Un jeton isolé de 17 caractères valides est une lecture « pleine »
+      // (coupon détachable, ligne de repère E) — bien plus fiable qu'une fenêtre.
+      for (const mot of l.toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean)) {
+        if (vinValide(mot)) pleines.add(mot)
+      }
       const compact = l.toUpperCase().replace(/[^A-Z0-9]/g, '')
-      for (let i = 0; i + 17 <= compact.length; i++) {
-        const w = compact.slice(i, i + 17)
-        if (vinValide(w)) candidats.add(w)
+      if (vinValide(compact)) pleines.add(compact)
+      if (compact.length >= 30) {
+        for (let i = 0; i + 17 <= compact.length; i++) {
+          const w = compact.slice(i, i + 17)
+          if (vinValide(w)) fenetres.add(w)
+        }
       }
     }
-    if (candidats.size === 1) mrzVin = [...candidats][0]
+    if (pleines.size === 1) {
+      mrzVin = [...pleines][0]
+    } else if (pleines.size === 0 && fenetres.size === 1) {
+      mrzVin = [...fenetres][0]
+    }
   }
 
   const noteMrz = 'Extrait de la bande MRZ (caractères ambigus possibles : O/0, I/1) — à vérifier'
+  const noteForme = 'Repère E non lu — valeur détectée par sa forme'
   if (mrzVin) {
     const existant = fields.find((f) => f.code === 'E')
     const base = {
@@ -464,7 +528,7 @@ export function parseCarteGrise(text: string): CarteGriseScan {
       value: mrzVin,
       normalized: mrzVin,
       confidence: 'moyenne' as const,
-      note: noteMrz,
+      note: ancre ? noteMrz : noteForme,
     }
     if (existant) {
       if (existant.normalized !== mrzVin) Object.assign(existant, base)
@@ -474,47 +538,55 @@ export function parseCarteGrise(text: string): CarteGriseScan {
     }
   }
 
-  // Marque / type depuis la ligne 2 de la bande : « CI<<MERSSAIDESS<<SR22OTD<<… »
+  // Marque / type depuis la ligne 2 de la bande : « CI<<MERSSAIDESS<<SR22OTD<<… ».
+  // Toutes les lignes candidates sont essayées : une ligne bruitée (« XX<<MARQUES<<… »)
+  // ne doit pas masquer la vraie ligne MRZ, et un libellé n'est jamais une valeur.
+  const depuisMrz = (code: string, valeur: string, forme: RegExp) => {
+    if (!forme.test(valeur)) return
+    if (estLibelle(valeur)) return
+    const spec = specs.find((s) => s.code === code)
+    if (!spec) return
+    const existant = fields.find((f) => f.code === code)
+    // Une lecture directe de la carte (même « moyenne ») prime sur le MRZ
+    if (existant && existant.confidence !== 'faible') return
+    const base = {
+      code,
+      label: spec.label,
+      target: spec.target,
+      sensitive: spec.sensitive,
+      value: valeur,
+      normalized: valeur,
+      confidence: 'moyenne' as const,
+      note: noteMrz,
+    }
+    if (existant) Object.assign(existant, base)
+    else {
+      fields.push(base)
+      codesVus.add(codeKey(code))
+    }
+  }
   for (const l of lignes) {
     if (!l.includes('<<')) continue
     const parts = l.toUpperCase().split(/<+/).map((s) => s.trim()).filter(Boolean)
     if (parts.length < 3 || !/^[A-Z]{2}$/.test(parts[0])) continue
-    const depuisMrz = (code: string, valeur: string, forme: RegExp) => {
-      if (!forme.test(valeur)) return
-      const spec = specs.find((s) => s.code === code)
-      if (!spec) return
-      const existant = fields.find((f) => f.code === code)
-      // Une lecture directe de la carte (même « moyenne ») prime sur le MRZ
-      if (existant && existant.confidence !== 'faible') return
-      const base = {
-        code,
-        label: spec.label,
-        target: spec.target,
-        sensitive: spec.sensitive,
-        value: valeur,
-        normalized: valeur,
-        confidence: 'moyenne' as const,
-        note: noteMrz,
-      }
-      if (existant) Object.assign(existant, base)
-      else {
-        fields.push(base)
-        codesVus.add(codeKey(code))
-      }
-    }
     depuisMrz('D.1', parts[1], /^[A-Z]{3,}$/)
     depuisMrz('D.3', parts[2], /^[A-Z0-9]{3,}$/)
-    break
   }
 
-  // --- 3. Secours par forme : même si le repère a été vu avec une valeur
-  //     bruitée, une valeur bien formée du document est proposée à sa place.
-  const secoursGlobal: Array<[string, (t: string) => string | undefined, FieldSpec['kind']]> = [
-    ['E', normalizeVin, 'vin'],
-    ['A', normalizePlate, 'immatriculation'],
-  ]
-  for (const [code, finder, kind] of secoursGlobal) {
-    const trouve = finder(text)
+  // --- 3. Secours par forme : un seul candidat plausible ⇒ proposer ;
+  //     plusieurs candidats ⇒ ne jamais deviner. Le VIN est déjà couvert par
+  //     l'unicité stricte du § 2bis (jamais « premier trouvé »).
+  const secoursGlobal: Array<[string, string | undefined]> = []
+  {
+    const plaques = new Set<string>()
+    for (const mot of text.split(/[^A-Za-z0-9À-ÿ\-]+/).filter(Boolean)) {
+      const p = normalizePlate(mot)
+      if (p) plaques.add(p)
+    }
+    secoursGlobal.push(['A', plaques.size === 1 ? [...plaques][0] : undefined])
+  }
+  for (const [code, trouve] of secoursGlobal) {
+    if (!trouve) continue
     if (!trouve) continue
     const existant = fields.find((f) => f.code === code)
     const spec = specs.find((s) => s.code === code)!

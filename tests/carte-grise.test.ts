@@ -410,3 +410,92 @@ describe('honnêteté des niveaux de confiance', () => {
     expect(s.fields.find((f) => f.code === 'F.1')?.confidence).toBe('haute')
   })
 })
+
+describe('valeurs « libellés » du document — jamais prises pour des valeurs', () => {
+  it('MARQUES / VERSION / MODELE sont des libellés, pas des valeurs', () => {
+    const s = parseCarteGrise('D.1 MARQUES\nD.2 VERSION\nD.3 MODELE')
+    for (const code of ['D.1', 'D.2', 'D.3']) {
+      const f = s.fields.find((x) => x.code === code)
+      expect(f?.confidence).toBe('faible')
+      expect(f?.note).toMatch(/libellé/i)
+      expect(f?.normalized).toBeUndefined()
+    }
+  })
+
+  it('une vraie valeur n’est pas prise pour un libellé', () => {
+    const s = parseCarteGrise('D.1 MERSSAIDESS')
+    expect(s.fields.find((f) => f.code === 'D.1')?.value).toBe('MERSSAIDESS')
+  })
+
+  it('la mention C.4a réelle reste acceptée', () => {
+    const s = parseCarteGrise('C.4a EST LE PROPRIETAIRE DU VEHICULE')
+    expect(s.fields.find((f) => f.code === 'C.4a')?.confidence).toBe('moyenne')
+  })
+})
+
+describe('secours MRZ robuste', () => {
+  it('une ligne bruitée « XX<<MARQUES<<… » n’empêche pas la vraie ligne MRZ', () => {
+    const s = parseCarteGrise(
+      'XX<<MARQUES<<VERSION<<ABCDEF\nCI<<MERSSAIDESS<<SR22OTD<<<<<98TN036623<38',
+    )
+    const d1 = s.fields.find((f) => f.code === 'D.1')
+    expect(d1?.normalized).toBe('MERSSAIDESS')
+    expect(d1?.note).toMatch(/MRZ/)
+  })
+
+  it('le VIN du coupon détachable est trouvé même sans ligne MRZ lisible', () => {
+    const s = parseCarteGrise('D.1 PEUGEOT\nVF1RFB00X56123456')
+    const e = s.fields.find((f) => f.code === 'E')
+    expect(e?.normalized).toBe('VF1RFB00X56123456')
+    expect(e?.note).toMatch(/Repère E non lu/)
+  })
+
+  it('plusieurs VIN candidats → jamais deviné', () => {
+    const s = parseCarteGrise('VF1RFB00X56123456\nVF1RFB00X65432109')
+    const e = s.fields.find((f) => f.code === 'E' && f.normalized)
+    expect(e).toBeUndefined()
+  })
+
+  it('parasites de fin de valeur supprimés (« DUPONT ] »)', () => {
+    const s = parseCarteGrise('C.1 DUPONT ]')
+    expect(s.fields.find((f) => f.code === 'C.1')?.value).toBe('DUPONT')
+  })
+
+  it('libellé « MARQUES » : jamais réduit à « S » ni supprimé', () => {
+    const s = parseCarteGrise('D.1 MARQUES')
+    const d1 = s.fields.find((f) => f.code === 'D.1')
+    expect(d1?.value).toBe('MARQUES')
+    expect(d1?.confidence).toBe('faible')
+    expect(d1?.note).toMatch(/libellé/i)
+    expect(d1?.normalized).toBeUndefined()
+  })
+
+  it('libellé « MARQUE » seul : le repère existe, faible, jamais validé', () => {
+    const s = parseCarteGrise('D.1 MARQUE')
+    const d1 = s.fields.find((f) => f.code === 'D.1')
+    expect(d1?.value).toBe('MARQUE')
+    expect(d1?.confidence).toBe('faible')
+    expect(d1?.normalized).toBeUndefined()
+  })
+
+  it('« Marque MERCEDES » : le libellé est retiré, la valeur reste', () => {
+    const s = parseCarteGrise('D.1 Marque MERCEDES')
+    expect(s.fields.find((f) => f.code === 'D.1')?.value).toBe('MERCEDES')
+  })
+
+  it('un E déjà rempli de déchet est remplacé par le VIN de la bande MRZ', () => {
+    const s = parseCarteGrise(
+      'E VFSIV2009ASTV2009\nA AB-123-CD\nCRFRAAB123CDOVF7X18E00018E847219801059VP<<<<',
+    )
+    const e = s.fields.find((f) => f.code === 'E')
+    expect(e?.normalized).toBe('VF7X18E00018E8472')
+    expect(e?.note).toMatch(/MRZ/i)
+  })
+
+  it('texte illisible en mots courts (« CI 43 CI = ») : faible, jamais validé', () => {
+    const s = parseCarteGrise('C.1 CI 43 CI =')
+    const f = s.fields.find((x) => x.code === 'C.1')
+    expect(f?.confidence).toBe('faible')
+    expect(f?.normalized).toBeUndefined()
+  })
+})
