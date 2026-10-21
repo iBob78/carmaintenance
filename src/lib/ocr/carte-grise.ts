@@ -71,10 +71,12 @@ interface FieldSpec {
 
 export const CARTE_GRISE_FIELDS: FieldSpec[] = [
   { code: 'A', label: "Numéro d'immatriculation", kind: 'immatriculation', target: 'immatriculation' },
+  { code: 'A.1', label: 'Immatriculation précédente', kind: 'texte', target: null },
   { code: 'B', label: 'Date de la 1re immatriculation', kind: 'date', target: 'premiereImmatriculation' },
   { code: 'C.1', label: 'Nom et prénom du titulaire', kind: 'texte', target: 'ownerName', sensitive: true },
   { code: 'C.3', label: 'Adresse du titulaire', kind: 'texte', target: null, sensitive: true },
   { code: 'C.4a', label: 'Mention (propriétaire / locataire)', kind: 'texte', target: null, sensitive: true },
+  { code: 'C.4.1', label: 'Co-titulaire', kind: 'texte', target: null, sensitive: true },
   { code: 'D.1', label: 'Marque', kind: 'texte', target: 'marque' },
   { code: 'D.2', label: 'Type, variante, version', kind: 'texte', target: 'generation' },
   { code: 'D.2.1', label: 'Code national d’identification du type (CNIT)', kind: 'texte', target: null },
@@ -82,22 +84,39 @@ export const CARTE_GRISE_FIELDS: FieldSpec[] = [
   { code: 'E', label: 'Numéro d’identification du véhicule (VIN)', kind: 'vin', target: 'vin' },
   { code: 'F.1', label: 'Masse en charge maximale (PTAC)', kind: 'nombre', target: null },
   { code: 'F.2', label: 'Masse en charge maximale en service', kind: 'nombre', target: null },
+  { code: 'F.3', label: 'Poids total roulant autorisé (PTRA)', kind: 'nombre', target: null },
   { code: 'G', label: 'Poids à vide', kind: 'nombre', target: null },
+  { code: 'G.1', label: 'Poids à vide national', kind: 'nombre', target: null },
   { code: 'H', label: 'Période de validité', kind: 'texte', target: null },
   { code: 'I', label: 'Date d’émission du certificat', kind: 'date', target: null },
+  { code: 'J', label: 'Catégorie du véhicule', kind: 'texte', target: null },
   { code: 'J.1', label: 'Genre national (VP, CTTE…)', kind: 'texte', target: null },
+  { code: 'J.2', label: 'Genre national (détail)', kind: 'texte', target: null },
   { code: 'J.3', label: 'Carrosserie', kind: 'texte', target: 'finition' },
   { code: 'K', label: 'Numéro de réception par type', kind: 'texte', target: null },
   { code: 'P.1', label: 'Cylindrée (cm³)', kind: 'nombre', target: 'cylindreeCm3' },
   { code: 'P.2', label: 'Puissance nette maximale (kW)', kind: 'nombre', target: null },
   { code: 'P.3', label: 'Type de carburant / source d’énergie', kind: 'carburant', target: 'carburant' },
   { code: 'P.6', label: 'Puissance administrative (CV fiscaux)', kind: 'nombre', target: null },
+  { code: 'Q', label: 'Rapport puissance / masse (motos)', kind: 'nombre', target: null },
   { code: 'S.1', label: 'Places assises', kind: 'nombre', target: null },
+  { code: 'S.2', label: 'Places debout', kind: 'nombre', target: null },
   { code: 'U.1', label: 'Niveau sonore à l’arrêt (dB)', kind: 'nombre', target: null },
+  { code: 'U.2', label: 'Vitesse du moteur (tr/min)', kind: 'nombre', target: null },
   { code: 'V.7', label: 'Émissions de CO₂ (g/km)', kind: 'nombre', target: null },
   { code: 'V.9', label: 'Classe environnementale', kind: 'texte', target: null },
   { code: 'X.1', label: 'Contrôle technique', kind: 'date', target: null },
+  { code: 'Y.1', label: 'Taxe régionale', kind: 'nombre', target: null },
+  { code: 'Y.2', label: 'Taxe formation professionnelle', kind: 'nombre', target: null },
+  { code: 'Y.3', label: 'Malus CO₂', kind: 'nombre', target: null },
+  { code: 'Y.4', label: 'Taxe de gestion', kind: 'nombre', target: null },
+  { code: 'Y.5', label: 'Redevance d’acheminement', kind: 'nombre', target: null },
+  { code: 'Y.6', label: 'Total des taxes', kind: 'nombre', target: null },
   { code: 'Z', label: 'Mentions particulières', kind: 'texte', target: null },
+  { code: 'Z.1', label: 'Mention particulière 1', kind: 'texte', target: null },
+  { code: 'Z.2', label: 'Mention particulière 2', kind: 'texte', target: null },
+  { code: 'Z.3', label: 'Mention particulière 3', kind: 'texte', target: null },
+  { code: 'Z.4', label: 'Mention particulière 4', kind: 'texte', target: null },
 ]
 
 // ---------------------------------------------------------------------------
@@ -113,6 +132,7 @@ const MOIS_FR: Record<string, number> = {
 /** Date française (JJ/MM/AAAA, JJ.MM.AAAA, JJ mois AAAA) → ISO AAAA-MM-JJ. */
 export function normalizeDate(raw: string): string | undefined {
   const s = raw.trim().replace(/\s+/g, ' ')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
   let m = s.match(/\b(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})\b/)
   if (m) {
     const [, j, mm, a] = m
@@ -132,19 +152,33 @@ export function normalizeDate(raw: string): string | undefined {
   return undefined
 }
 
-/** VIN : 17 caractères alphanumériques (sans espaces, en capitales). */
+/** VIN : 17 caractères alphanumériques (ISO 3779, sans I/O/Q), séparateurs OCR possibles. */
 export function normalizeVin(raw: string): string | undefined {
-  const compact = raw.toUpperCase().replace(/[\s.\-]/g, '')
-  const m = compact.match(/\b([A-HJ-NPR-Z0-9]{17})\b/) ?? compact.match(/([A-HJ-NPR-Z0-9]{17})/)
-  return m ? m[1] : undefined
+  const vinValide = (vin: string) => /[A-HJ-NPR-Z]/.test(vin) && /[0-9]/.test(vin)
+  const haut = raw.toUpperCase()
+  // 1. Suite continue de 17 caractères (cas courant) — les bords de mot
+  //    évitent les faux positifs sur la bande MRZ (longue suite alphanumérique).
+  const strict = haut.match(/\b([A-HJ-NPR-Z0-9]{17})\b/)
+  if (strict && vinValide(strict[1])) return strict[1]
+  // 2. Séparateurs OCR possibles (espaces internes, tirets, points) — jamais
+  //    à cheval sur plusieurs lignes, et nombre de séparateurs limité pour
+  //    éviter l'enchaînement « D.3 SR220TD F.1 1915 » en faux VIN.
+  for (const m of haut.matchAll(/\b([A-HJ-NPR-Z0-9](?:[ \t.\-]?[A-HJ-NPR-Z0-9]){16})\b/g)) {
+    const brut = m[1]
+    const seps = (brut.match(/[ \t.\-]/g) ?? []).length
+    if (seps > 4) continue
+    const vin = brut.replace(/[ \t.\-]/g, '')
+    if (vinValide(vin)) return vin
+  }
+  return undefined
 }
 
 /** Immatriculation SIV (AB-123-CD) ou ancien format, en capitales. */
 export function normalizePlate(raw: string): string | undefined {
-  const s = raw.toUpperCase().replace(/\s/g, '')
-  const siv = s.match(/\b([A-Z]{2})[-–]?(\d{3})[-–]?([A-Z]{2})\b/)
-  if (siv) return `${siv[1]}-${siv[2]}-${siv[3]}`
-  return undefined
+  // Ne pas supprimer les espaces : « AB-123-CD 8. 05/01/1998 » doit rester
+  // découvrable, la valeur parasite ne doit pas casser les bords de mot.
+  const siv = raw.toUpperCase().match(/\b([A-Z]{2})[-–\s]?(\d{3})[-–\s]?([A-Z]{2})\b/)
+  return siv ? `${siv[1]}-${siv[2]}-${siv[3]}` : undefined
 }
 
 /** Nombre à la française (« 1 461 » ou « 1461,5 ») → Number. */
@@ -227,15 +261,24 @@ function classify(spec: FieldSpec, raw: string): Pick<ScanField, 'value' | 'norm
         ? { value, normalized: c, confidence: 'haute' }
         : { value, confidence: 'faible', note: 'Code énergie inconnu (attendu : ES, GO, EL, EE…)' }
     }
-    default:
-      return { value, confidence: value.length > 0 ? 'moyenne' : 'faible' }
+    default: {
+      // Valeur texte illisible (bruit OCR pur : « â ; », « =. ») → jamais fiable
+      const alnum = (value.match(/[A-Za-zÀ-ÿ0-9]/g) ?? []).length
+      if (alnum < 2) {
+        return { value, confidence: 'faible', note: 'Valeur illisible sur le document' }
+      }
+      return { value, confidence: 'moyenne' }
+    }
   }
 }
 
 /**
  * Analyse le texte OCR d'une carte grise.
- * Détecte les repères lettrés (A, B, D.1, E, P.3…) puis les valeurs par leur
- * forme (VIN 17 caractères, plaque, dates) lorsque les repères manquent.
+ * - les repères lettrés (A, B, D.1, E, P.3…) sont détectés même regroupés
+ *   sur une même ligne (« A. AB-123-CD   B. 05/01/1998 ») ;
+ * - les valeurs retrouvées par leur forme (VIN 17 caractères, plaque SIV)
+ *   complètent ou remplacent une valeur bruitée — jamais inventées ;
+ * - les fragments non interprétés restent affichés.
  */
 export function parseCarteGrise(text: string): CarteGriseScan {
   const lignes = text
@@ -247,59 +290,141 @@ export function parseCarteGrise(text: string): CarteGriseScan {
   const codesVus = new Set<string>()
   const consomme = new Set<number>()
 
-  // Les codes les plus longs d'abord (D.2.1 avant D.2, P.6 avant P…)
+  // Codes les plus longs d'abord (D.2.1 avant D.2, Z.1 avant Z…)
   const specs = [...CARTE_GRISE_FIELDS].sort((a, b) => b.code.length - a.code.length)
+  const codeAlt = specs.map((s) => s.code.replace(/\./g, '\\.')).join('|')
+  // Lookbehind : le séparateur avant le repère n'est jamais consommé, sinon
+  // « Y.5 Y.6 » perdrait Y.6 (l'espace avalé par la fin du match précédent).
+  const tokenRe = new RegExp(`(?<=^|\\s)(${codeAlt})\\b[\\s.:]*`, 'gi')
 
+  /** Découpe une ligne en segments [repère → valeur] : plusieurs repères par ligne possibles. */
+  const segments = (ligne: string): Array<{ code: string; valeur: string }> => {
+    const out: Array<{ code: string; valeur: string }> = []
+    const matches = [...ligne.matchAll(tokenRe)]
+    matches.forEach((m, i) => {
+      const debut = (m.index ?? 0) + m[0].length
+      const fin = i + 1 < matches.length ? (matches[i + 1].index ?? ligne.length) : ligne.length
+      out.push({ code: m[1].toUpperCase(), valeur: ligne.slice(debut, fin).trim() })
+    })
+    return out
+  }
+
+  // --- 1. Repères lettrés
   lignes.forEach((ligne, i) => {
-    for (const spec of specs) {
-      if (codesVus.has(spec.code)) continue
-      const escaped = spec.code.replace('.', '\\.')
-      const m = ligne.match(new RegExp(`(?:^|\\s)${escaped}\\b[:.\\s]*([^\\s].*)?$`, 'i'))
-      if (!m) continue
-
-      let valeur = (m[1] ?? '').trim()
-      if (!valeur) {
+    if (consomme.has(i)) return
+    const segs = segments(ligne)
+    for (const { code, valeur } of segs) {
+      if (codesVus.has(code)) continue
+      const spec = specs.find((s) => s.code === code)
+      if (!spec) continue
+      let val = valeur
+      if (!val) {
         // Valeur sur la ligne suivante
         for (let j = i + 1; j < Math.min(i + 3, lignes.length); j++) {
           if (consomme.has(j)) continue
-          const prochaine = lignes[j]
-          if (CARTE_GRISE_FIELDS.some((s) => new RegExp(`^(?:${s.code.replace('.', '\\.')})\\b`, 'i').test(prochaine))) break
-          valeur = prochaine
+          if (segments(lignes[j]).length > 0) break
+          val = lignes[j]
           consomme.add(j)
           break
         }
       } else {
-        valeur = stripLabel(valeur, spec.label)
+        val = stripLabel(val, spec.label)
       }
-      if (!valeur) continue
-
-      codesVus.add(spec.code)
+      if (!val) continue
+      codesVus.add(code)
       consomme.add(i)
-      fields.push({ code: spec.code, label: spec.label, target: spec.target, sensitive: spec.sensitive, ...classify(spec, valeur) })
-      return
+      fields.push({ code, label: spec.label, target: spec.target, sensitive: spec.sensitive, ...classify(spec, val) })
     }
   })
 
-  // Repli par forme de valeur : VIN, plaque, dates — si le repère n'a pas été lu
-  const reste = lignes.filter((_, i) => !consomme.has(i))
-  if (!codesVus.has('E')) {
-    const vinLigne = reste.find((l) => normalizeVin(l))
-    if (vinLigne) {
-      const spec = CARTE_GRISE_FIELDS.find((s) => s.code === 'E')!
-      fields.push({ code: 'E', label: spec.label, target: spec.target, ...classify(spec, vinLigne), confidence: 'moyenne', note: 'Repère E non lu — valeur détectée par sa forme (17 caractères)' })
-    }
-  }
-  if (!codesVus.has('A')) {
-    const plaqueLigne = reste.find((l) => normalizePlate(l) && !normalizeVin(l))
-    if (plaqueLigne) {
-      const spec = CARTE_GRISE_FIELDS.find((s) => s.code === 'A')!
-      fields.push({ code: 'A', label: spec.label, target: spec.target, ...classify(spec, plaqueLigne), confidence: 'moyenne', note: 'Repère A non lu — valeur détectée par sa forme' })
+  // --- 2. Valeurs collées à un autre repère (« A. AB-123-CD 8. 05/01/1998 »
+  //     où le « B » a été mal lu) : la partie résiduelle est ré-analysée.
+  for (const f of [...fields]) {
+    const reste = f.value.replace(f.normalized ?? '\u0000', '').trim()
+    if (!reste || reste === f.value) continue
+    const secours: Array<[string, (v: string) => string | undefined]> = [
+      ['B', normalizeDate],
+      ['E', normalizeVin],
+      ['A', normalizePlate],
+    ]
+    for (const [code, finder] of secours) {
+      if (codesVus.has(code)) continue
+      const trouve = finder(reste)
+      if (!trouve) continue
+      const spec = specs.find((s) => s.code === code)!
+      fields.push({
+        code,
+        label: spec.label,
+        target: spec.target,
+        sensitive: spec.sensitive,
+        value: trouve,
+        normalized: trouve,
+        confidence: 'moyenne',
+        note: `Repère ${code} mal lu — valeur détectée dans la ligne du repère ${f.code}`,
+      })
+      codesVus.add(code)
+      break
     }
   }
 
-  // Fragments non interprétés : signalés, jamais masqués
+  // --- 3. Secours par forme : même si le repère a été vu avec une valeur
+  //     bruitée, une valeur bien formée du document est proposée à sa place.
+  const secoursGlobal: Array<[string, (t: string) => string | undefined, FieldSpec['kind']]> = [
+    ['E', normalizeVin, 'vin'],
+    ['A', normalizePlate, 'immatriculation'],
+  ]
+  for (const [code, finder, kind] of secoursGlobal) {
+    const trouve = finder(text)
+    if (!trouve) continue
+    const existant = fields.find((f) => f.code === code)
+    const spec = specs.find((s) => s.code === code)!
+    if (existant && existant.normalized) continue
+    if (existant) {
+      existant.value = trouve
+      existant.normalized = trouve
+      existant.confidence = 'moyenne'
+      existant.note = `Repère ${code} mal lu — valeur retrouvée ailleurs dans le document`
+    } else {
+      fields.push({
+        code,
+        label: spec.label,
+        target: spec.target,
+        sensitive: spec.sensitive,
+        value: trouve,
+        normalized: trouve,
+        confidence: 'moyenne',
+        note: `Repère ${code} non lu — valeur détectée par sa forme`,
+      })
+      codesVus.add(code)
+    }
+  }
+
+  // --- 4. Repère B : uniquement si UNE SEULE date figure au document
+  if (!codesVus.has('B')) {
+    const dates = new Set<string>()
+    for (const m of text.matchAll(/\b\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4}\b/g)) {
+      const iso = normalizeDate(m[0])
+      if (iso) dates.add(iso)
+    }
+    if (dates.size === 1) {
+      const iso = [...dates][0]
+      const spec = specs.find((s) => s.code === 'B')!
+      fields.push({
+        code: 'B',
+        label: spec.label,
+        target: spec.target,
+        ...classify(spec, iso),
+        confidence: 'moyenne',
+        note: 'Repère B non lu — date unique présente sur le document',
+      })
+      codesVus.add('B')
+    }
+  }
+
+  // --- Fragments non interprétés : signalés, jamais masqués
   const interpretees = new Set(fields.map((f) => f.value.toLowerCase()))
-  const nonInterpretes = reste
+  const nonInterpretes = lignes
+    .filter((_, i) => !consomme.has(i))
     .filter((l) => ![...interpretees].some((v) => v && l.toLowerCase().includes(v)))
     .filter((l) => l.length > 2)
     .slice(0, 20)

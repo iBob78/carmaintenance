@@ -128,3 +128,134 @@ describe('parseCarteGrise', () => {
     expect(vide.nonInterpretes).toHaveLength(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Cas réel : spécimen officiel de carte grise (format SIV 2009), photographié.
+// Reproduit les erreurs OCR observées : repères regroupés sur une ligne,
+// « B » lu « 8. », valeur E bruitée (« â ; ») alors que le vrai VIN figure
+// dans le coupon détachable, bande MRZ en bas de page.
+// ---------------------------------------------------------------------------
+
+const OCR_SPECIMEN = `
+CERTIFICAT D'IMMATRICULATION
+N° d'immatriculation Date de 1ère immatriculation 25/07/2008 V1 0000257
+A. AB-123-CD 8. 05/01/1998
+C.1 DUPONT
+YVES
+C.4a EST LE PROPRIETAIRE DU VEHICULE
+C.41 2 DELAROCHE
+C.3 27 RUE DES ROITELETS
+59169 FERIN LES BAINS
+FRANCE
+D.1 MERSSAIDESS
+D.2 X18E
+D.2.1 MCT5432PY315 E. â ;
+D.3 SR220TD
+F.1 1915 F.2 1915 F.3 1915
+G 3030 G.1 1307
+J M1 J.1 VP J.2 CI J.3 CI
+K e2*2001/116*0317*02
+P.1 1900 P.2 90 P.3 GO P.6 6
+Q 0,06 S.1 5 S.2 U.1 77
+U.2 3000 V.7 155 V.9
+X.1 VISITE AVANT LE 06/07/2011
+Y.1 178,35 Y.2 Y.3 Y.4
+Y.5 Y.6 178,35
+H
+I 04/12/2009
+Z.1
+Z.2
+Z.3
+Z.4
+Certificat d'immatriculation
+AB-123-CD 04/12/2009
+98TN036623
+VF7X18E00018E8472
+MERSSAIDESS
+DUPONT
+YVES
+CRFRAAB123CD0VF7X18E00018E847219801059VP<<<<
+CI<<MERSSAIDESS<<SR220TD<<<<<98TN036623<38
+`
+
+describe('parseCarteGrise — spécimen officiel (photo réelle)', () => {
+  const scan = parseCarteGrise(OCR_SPECIMEN)
+  const parCode = Object.fromEntries(scan.fields.map((f) => [f.code, f]))
+
+  it('plusieurs repères sur une même ligne : A et B séparés', () => {
+    expect(parCode['A'].normalized).toBe('AB-123-CD')
+    expect(parCode['A'].confidence).toBe('haute')
+    expect(parCode['D.2.1'].value).toBe('MCT5432PY315') // pas avalé par E
+  })
+
+  it('B récupéré depuis la ligne de A (« B » lu « 8. »)', () => {
+    expect(parCode['B'].normalized).toBe('1998-01-05')
+    expect(parCode['B'].note).toMatch(/ligne du repère A/)
+  })
+
+  it('E bruité (« â ; ») remplacé par le VIN du document', () => {
+    expect(parCode['E'].normalized).toBe('VF7X18E00018E8472')
+    expect(parCode['E'].confidence).toBe('moyenne')
+    expect(parCode['E'].note).toMatch(/retrouvée ailleurs/)
+  })
+
+  it('la bande MRZ ne produit aucun faux VIN', () => {
+    const vins = scan.fields.filter((f) => f.code === 'E')
+    expect(vins).toHaveLength(1)
+    expect(vins[0].normalized).toBe('VF7X18E00018E8472')
+    expect(vins[0].normalized).not.toContain('CRFR')
+  })
+
+  it('repères techniques du spécimen lus', () => {
+    expect(parCode['D.1'].value).toBe('MERSSAIDESS')
+    expect(parCode['D.2'].value).toBe('X18E')
+    expect(parCode['D.3'].value).toBe('SR220TD')
+    expect(parCode['P.1'].normalized).toBe('1900')
+    expect(parCode['P.3'].normalized).toBe('diesel') // code GO
+    expect(parCode['P.6'].normalized).toBe('6')
+    expect(parCode['X.1'].normalized).toBe('2011-07-06') // « VISITE AVANT LE »
+    expect(parCode['I'].normalized).toBe('2009-12-04')
+    expect(parCode['K'].value).toBe('e2*2001/116*0317*02')
+    expect(parCode['Y.6'].normalized).toBe('178.35')
+  })
+
+  it('pré-remplissage véhicule complet à partir du spécimen', () => {
+    const prefill = toVehiclePrefill(scan.fields)
+    expect(prefill).toMatchObject({
+      immatriculation: 'AB-123-CD',
+      premiereImmatriculation: '1998-01-05',
+      annee: 1998,
+      marque: 'MERSSAIDESS',
+      modele: 'SR220TD',
+      vin: 'VF7X18E00018E8472',
+      cylindreeCm3: 1900,
+      carburant: 'diesel',
+    })
+  })
+
+  it('données personnelles signalées', () => {
+    expect(parCode['C.1'].sensitive).toBe(true)
+    expect(parCode['C.3'].sensitive).toBe(true)
+  })
+})
+
+describe('normalisations — cas de la photo réelle', () => {
+  it('plaque avec valeur parasite collée', () => {
+    expect(normalizePlate('AB-123-CD 8. 05/01/1998')).toBe('AB-123-CD')
+    expect(normalizePlate('AB 123 CD')).toBe('AB-123-CD')
+  })
+
+  it('VIN : faux positifs refusés (suite MRZ, texte)', () => {
+    expect(normalizeVin('CRFRAAB123CD0VF7X18E00018E847219801059VP<<<<')).toBeUndefined()
+    expect(normalizeVin('LE PROPRIETAIRE DU VEHICULE EST CONNU')).toBeUndefined()
+    expect(normalizeVin('â ;')).toBeUndefined()
+    expect(normalizeVin('VF7X 18E 000 18E 8472')).toBe('VF7X18E00018E8472') // séparateurs OCR
+  })
+
+  it('valeur illisible → jamais présentée comme fiable', () => {
+    const s = parseCarteGrise('K =.')
+    const k = s.fields.find((f) => f.code === 'K')
+    expect(k?.confidence).toBe('faible')
+    expect(k?.note).toMatch(/illisible/)
+  })
+})

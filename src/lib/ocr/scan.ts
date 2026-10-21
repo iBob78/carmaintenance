@@ -15,7 +15,9 @@ async function getWorker(): Promise<import('tesseract.js').Worker> {
     workerPromise = (async () => {
       const { createWorker } = await import('tesseract.js')
       // Données linguistiques françaises (chargées une seule fois, mises en cache)
-      return createWorker('fra')
+      const worker = await createWorker('fra')
+      await worker.setParameters({ preserve_interword_spaces: '1' })
+      return worker
     })()
   }
   return workerPromise
