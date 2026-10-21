@@ -43,6 +43,27 @@ transmission, VIN, photos, date d'acquisition — et relevés kilométriques
   liée) ;
 - rappels : échéances par date ou par kilométrage, entretiens en retard.
 
+### Entretien préventif : planning par modèle
+
+- **catalogue de plans d'entretien sourcés** par famille moteur (Clio IV 1.2 TCe,
+  1.5 dCi, 3008 II BlueHDi 130, PureTech EB2, Golf VII 1.6 TDI, Duster 1.5 dCi…) :
+  chaque périodicité porte ses **URL sources et sa date de consultation** ; les
+  divergences de sources et rappels constructeurs sont signalés, jamais lissés ;
+- **appariement par code moteur** (carte grise) > motorisation > modèle + carburant ;
+  sans plan connu, **aucune valeur n'est inventée** (saisie manuelle) ;
+- fiche véhicule, onglet « Échéances » : tableau du planning (prochaine échéance
+  calculée depuis l'historique, gravité « critique » pour la distribution) et boutons
+  **« Activer le rappel »** (km et/ou date) ;
+- mention permanente « à vérifier sur votre carnet d'entretien ».
+
+### Conseils d'entretien
+
+- page **`/conseils`** : jalons par kilométrage en cartes (contrôler / remplacer /
+  rotation pneus), bons réflexes du quotidien, encart « conditions d'usage difficiles »
+  (usage sévère : intervenir plus tôt) ;
+- contenu **100 % sourcé** (guide CarGurus converti miles → km, sources FR), même
+  discipline de traçabilité que le planning.
+
 ### Scan de documents par OCR (100 % local)
 
 - **Carte grise → fiche véhicule** : photographiez le certificat
@@ -97,7 +118,7 @@ Options → Prévisualiser → Générer et télécharger**.
 | PDF | **@react-pdf/renderer** (génération **côté serveur**) |
 | OCR | **tesseract.js** (lecture de carte grise / factures **dans le navigateur**, sans serveur ni clé API) |
 | Données | Mode **démo local** (localStorage) + adaptateur **Supabase** (Auth, PostgreSQL, Storage privé) |
-| Tests | **Vitest** (71 tests unitaires et d'intégration) |
+| Tests | **Vitest** (120 tests unitaires et d'intégration) |
 | Licence | **GPL-3.0** |
 
 > Le mode **démo** est actif par défaut : aucune configuration n'est nécessaire,
@@ -122,7 +143,7 @@ Autres commandes :
 ```bash
 npm run build      # build de production
 npm start          # serveur de production
-npm test           # 71 tests Vitest
+npm test           # 120 tests Vitest
 npm run typecheck  # vérification TypeScript
 npm run dev:clean  # dev avec purge du cache (si « Cannot find module './xxx.js' »)
 ```
@@ -187,7 +208,7 @@ POST /api/vehicles/{vehicleId}/reports/sale
 npm test
 ```
 
-71 tests couvrant notamment : présence/absence des sections sélectionnées,
+120 tests couvrant notamment : présence/absence des sections sélectionnées,
 pagination d'un historique volumineux (60 interventions), gestion des
 kilométrages inconnus ou incohérents, exactitude des totaux et
 remboursements, masquage des données personnelles (y compris factures),
@@ -195,6 +216,10 @@ signalement des pièces jointes manquantes, validation et reproductibilité du
 PDF, lecture OCR de la carte grise (repères A/B/D.1/D.3/**E=VIN**/P.3, dates,
 immatriculations, données personnelles signalées) et des factures (montants
 TTC/HT/TVA, kilométrage, lignes) sans jamais inventer de donnée.
+
+Des suites dédiées couvrent aussi le **planning d'entretien par modèle**
+(intégrité du catalogue sourcé, appariement par code moteur) et les **conseils**
+(intégrité des sources consultées).
 
 ---
 
@@ -205,8 +230,18 @@ TTC/HT/TVA, kilométrage, lignes) sans jamais inventer de donnée.
 - ✅ Scan OCR local : carte grise → fiche véhicule, facture → intervention
 - ✅ Rapport de vente PDF 8 sections + confidentialité + anomalies + instantané
 - ✅ Migration SQL Supabase (RLS, storage privé, suppression RGPD)
+- ✅ Planning d'entretien par modèle (catalogue sourcé) + rappels activables
+- ✅ Page « Conseils » : jalons d'entretien, bons réflexes, conditions sévères
 - ⬜ Activation de l'adaptateur Supabase (Auth + données réelles)
 - ⬜ Application mobile associée
+
+## Reprise du projet (contributeurs & IA)
+
+Le dossier complet de reprise — architecture, modèle de données, politiques métier
+(VIN, dates JJ/MM/AAAA, données sourcées), boucle de vérification, **pièges connus**
+et méthode de travail — est maintenu dans [`AGENTS.md`](AGENTS.md). C'est le point
+d'entrée à lire en premier pour toute reprise du développement, en particulier par
+une intelligence artificielle travaillant sans autre contexte.
 
 ## Licence
 
