@@ -8,7 +8,7 @@
 import React, { useRef, useState } from 'react'
 import { Badge, Button, Card, Checkbox, Progress } from './ui'
 import { recognizeImage, type RecognizeResult } from '@/lib/ocr/scan'
-import { toVehiclePrefill, type CarteGriseScan, type ScanField, type VehiclePrefill } from '@/lib/ocr/carte-grise'
+import { toVehiclePrefill, type CarteGriseScan, type ScanField, type VehiclePrefill, afficheChamp } from '@/lib/ocr/carte-grise'
 import { toServicePrefill, type FactureScan, type ServicePrefill } from '@/lib/ocr/facture'
 
 // ---------------------------------------------------------------------------
@@ -125,13 +125,16 @@ export function CarteGriseReview({
                 {!f.target && <Badge tone="amber">affichage seul</Badge>}
               </div>
               <p className="mt-0.5 break-words text-sm text-slate-900">
-                {f.normalized && f.normalized !== f.value ? (
-                  <>
-                    <span className="text-slate-500 line-through">{f.value}</span> → <strong>{f.normalized}</strong>
-                  </>
-                ) : (
-                  <strong>{f.value}</strong>
-                )}
+                {(() => {
+                  const aff = afficheChamp(f)
+                  return aff.droite !== undefined ? (
+                    <>
+                      <span className="text-slate-500 line-through">{aff.gauche}</span> → <strong>{aff.droite}</strong>
+                    </>
+                  ) : (
+                    <strong>{aff.gauche}</strong>
+                  )
+                })()}
               </p>
               {f.note && <p className="mt-0.5 text-xs text-amber-700">{f.note}</p>}
             </div>
@@ -224,7 +227,7 @@ export function FactureReview({
           <div key={cle} className="flex items-center justify-between gap-3">
             <Checkbox label={libelle} checked={Boolean(selection[cle])} onChange={(v) => setSelection((s) => ({ ...s, [cle]: v }))} />
             <span className="text-right text-sm text-slate-900">
-              {cle === 'date' && (scan.date?.normalized ?? scan.date?.value ?? '—')}
+              {cle === 'date' && (scan.date ? (afficheChamp(scan.date).droite ?? afficheChamp(scan.date).gauche) : '—')}
               {cle === 'fournisseur' && (scan.fournisseur?.value ?? '—')}
               {cle === 'montantTTC' && (scan.montantTTC ? `${scan.montantTTC.normalized} €` : '—')}
               {cle === 'kilometrage' && (scan.kilometrage ? `${scan.kilometrage.normalized} km` : '—')}

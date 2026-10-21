@@ -9,6 +9,7 @@
 // adresse) sont signalées comme sensibles.
 
 import type { Carburant } from '@/lib/domain/types'
+import { formatDateShort } from '@/lib/domain/format'
 
 // ---------------------------------------------------------------------------
 // Champs cibles du formulaire véhicule (pré-remplissage possible)
@@ -674,4 +675,24 @@ export function toVehiclePrefill(fields: ScanField[]): VehiclePrefill {
     if (an >= 1900 && an <= 2100) prefill.annee = an
   }
   return prefill
+}
+
+/**
+ * Valeur à afficher pour un champ OCR. Les dates sont présentées JJ/MM/AAAA
+ * (format du document et de l'application) — jamais en ISO : « 05/01/1998 »,
+ * pas « 1998-01-05 ». Quand la valeur lue est déjà la bonne date, aucune
+ * flèche de correction. L'ISO reste la forme stockée (saisie date, échéances).
+ */
+export function afficheChamp(f: Pick<ScanField, 'value' | 'normalized'>): { gauche: string; droite?: string } {
+  const estDateIso = (s: string | undefined): s is string => Boolean(s && /^\d{4}-\d{2}-\d{2}$/.test(s))
+  if (estDateIso(f.normalized) && (normalizeDate(f.value) === f.normalized || f.value === f.normalized)) {
+    return { gauche: formatDateShort(f.normalized) }
+  }
+  if (!f.normalized && estDateIso(f.value)) {
+    return { gauche: formatDateShort(f.value) }
+  }
+  if (f.normalized && f.normalized !== f.value) {
+    return { gauche: f.value, droite: estDateIso(f.normalized) ? formatDateShort(f.normalized) : f.normalized }
+  }
+  return { gauche: f.value }
 }

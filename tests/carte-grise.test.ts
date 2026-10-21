@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  afficheChamp,
   parseCarteGrise,
   toVehiclePrefill,
   normalizeDate,
@@ -497,5 +498,37 @@ describe('secours MRZ robuste', () => {
     const f = s.fields.find((x) => x.code === 'C.1')
     expect(f?.confidence).toBe('faible')
     expect(f?.normalized).toBeUndefined()
+  })
+})
+
+describe('affichage des dates — format français JJ/MM/AAAA', () => {
+  it('« 05/01/1998 » est déjà la bonne date : affiché tel quel, sans ISO', () => {
+    const s = parseCarteGrise('B 05/01/1998')
+    const f = s.fields.find((x) => x.code === 'B')!
+    expect(f.normalized).toBe('1998-01-05') // forme stockée (ISO) inchangée
+    expect(afficheChamp(f)).toEqual({ gauche: '05/01/1998' }) // affiché JJ/MM/AAAA
+  })
+
+  it('X.1 (date de contrôle) passe aussi en français', () => {
+    const s = parseCarteGrise('X.1 06/07/2011')
+    const f = s.fields.find((x) => x.code === 'X.1')!
+    expect(afficheChamp(f)).toEqual({ gauche: '06/07/2011' })
+  })
+
+  it('une date à corriger est montrée en JJ/MM/AAAA après la flèche', () => {
+    const aff = afficheChamp({ value: '05/01/1998', normalized: '2011-07-06' })
+    expect(aff).toEqual({ gauche: '05/01/1998', droite: '06/07/2011' })
+  })
+
+  it('une date secourue en ISO est affichée en français', () => {
+    expect(afficheChamp({ value: '1998-01-01', normalized: undefined })).toEqual({ gauche: '01/01/1998' })
+    expect(afficheChamp({ value: '1998-01-05', normalized: '1998-01-05' })).toEqual({ gauche: '05/01/1998' })
+  })
+
+  it('un VIN ou un nombre reste affiché tel quel', () => {
+    expect(afficheChamp({ value: 'VF7X18E00018E8472', normalized: 'VF7X18E00018E8472' })).toEqual({
+      gauche: 'VF7X18E00018E8472',
+    })
+    expect(afficheChamp({ value: '155-va', normalized: '155' })).toEqual({ gauche: '155-va', droite: '155' })
   })
 })
