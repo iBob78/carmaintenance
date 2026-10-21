@@ -196,7 +196,7 @@ describe('parseCarteGrise — spécimen officiel (photo réelle)', () => {
   it('E bruité (« â ; ») remplacé par le VIN du document', () => {
     expect(parCode['E'].normalized).toBe('VF7X18E00018E8472')
     expect(parCode['E'].confidence).toBe('moyenne')
-    expect(parCode['E'].note).toMatch(/retrouvée ailleurs/)
+    expect(parCode['E'].note).toMatch(/MRZ|retrouvée/)
   })
 
   it('la bande MRZ ne produit aucun faux VIN', () => {
@@ -257,5 +257,156 @@ describe('normalisations — cas de la photo réelle', () => {
     const k = s.fields.find((f) => f.code === 'K')
     expect(k?.confidence).toBe('faible')
     expect(k?.note).toMatch(/illisible/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Vraie sortie OCR de la photo réelle (Tesseract fra, passes PSM 3 + PSM 6
+// fusionnées comme dans src/lib/ocr/scan.ts). Bruit réel compris :
+// « B » lu « 8. », ligne E en « Æ VF7X1BE00011 », D.1 illisible, G fusionné…
+// ---------------------------------------------------------------------------
+
+const OCR_REEL = `
+CERTIFICAT D'INMATRICULATION
+N° {immatriculation         Date de 1 immatriculation 25/07/2008 V1 0000257
+
+A AB-123-CD     B. 05/01/1998
+©.1 DUPONT
+
+vves
+
+CAe EST LE PROPRIETAIRE DU VEHICULE
+CA1 2 DELAROCHE
+.
+
+RUE        DES ROITELETS
+
+FERIN LES BAINS
+
+D.24 MCTS432PY315.
+Æ VF7X1BE00011
+F2 1915      F3 1915
+6.1 1307
+vi ve       v2 ci        43 c
++116+0317*02
+P290       P3 Go       P&6
+815          s2           u1 T7
+V7 155       va
+ANT LE 06/07/2011 "Fe
+
+vi 178,35 V2
+
+vs                  va
+vs.          Y6 178,35
+#
+
+04/12/2009
+
+CRFRAAB123CDOVF7X18E00018E847219801059VP<<<<
+CI<<MERSSAIDESS<<<SR22OTD<<<<<98TN036623<38
+
+CERTIFICAT D'IMMATRICULATION
+Himmatsiaistion Dmede *immaticistion 25/07/2008 V1 0000257
+A AB-123-CD      8. 05/01/1998
+€.1 DUPONT
+vves
+C4a EST LE PROPRIETAIRE DU VEHICULE              =
+CA1 2 DÉLAROCHE                   =.
+“Tr      RUE     DES ROITELETS           = |
+> 9169 FERIN LES BAINS                 E à ;
+{DA MERSSAIDESS                            É —— ,
+panier                                                      =
+Ë                D21 MCTS432PY315 |
+D3 SR220TD                       E VF7X18e00018E84m2
+TÉt rais    F2 1915      F3 1915                 =’
+& 3030     64 1307                           É——
+su       14 ve       V2 c1        33 C1       ="
+(K e242001/11640317402                es 3
+ef 1900  P290       Ps co       P&6       =
+a 006. sss      s2       (Es 2
+u23000 V7 155     va             =)
+X1 VISITE AVANT LE 06/07/2011 ee
+vd aze,ss v2                  —…u. .
+vs       va             |      dei =  =
+vs    Y6 178,35      2e 155524
+                            AOME UE 2
+1 04/12/2009                             PE
+un.                MEN     —
+=                   p£ @                     se.
+2e 5,                     se =
+5                                            :,.: 5
+ss              55
+FAB-125-D 04/12/2009          =  mr K. =.
+2e aoceters   P €                    ce.
+puot                                           :
+CRFRAAB123CDOVF7X18E00018E847219801059VP<<<<
+CI<<MERSSAIDESS<<<SR2ZOTD<<<<<98TND36623<38
+`
+
+describe('parseCarteGrise — vraie sortie OCR (photo réelle, PSM 3+6)', () => {
+  const scan = parseCarteGrise(OCR_REEL)
+  const parCode = Object.fromEntries(scan.fields.map((f) => [f.code, f]))
+
+  it('A et B récupérés malgré le bruit', () => {
+    expect(parCode['A'].normalized).toBe('AB-123-CD')
+    expect(parCode['B'].normalized).toBe('1998-01-05')
+  })
+
+  it('E : VIN vrai depuis la bande MRZ (la ligne E est illisible)', () => {
+    expect(parCode['E'].normalized).toBe('VF7X18E00018E8472')
+    expect(parCode['E'].confidence).toBe('moyenne')
+    expect(parCode['E'].note).toMatch(/MRZ/)
+  })
+
+  it('D.1 illisible → marque récupérée dans la bande MRZ', () => {
+    expect(parCode['D.1'].normalized).toBe('MERSSAIDESS')
+    expect(parCode['D.1'].note).toMatch(/MRZ/)
+  })
+
+  it('repères lisibles récupérés (points OCR optionnels : « P290 » = P.2 → 90)', () => {
+    expect(parCode['D.3'].value).toBe('SR220TD')
+    expect(parCode['D.2.1'].value).toBe('MCTS432PY315')
+    expect(parCode['P.2'].normalized).toBe('90')
+    expect(parCode['P.3'].normalized).toBe('diesel') // « P3 Go »
+    expect(parCode['F.2'].normalized).toBe('1915')
+    expect(parCode['F.3'].normalized).toBe('1915')
+    expect(parCode['U.2'].normalized).toBe('3000')
+    expect(parCode['V.7'].normalized).toBe('155')
+    expect(parCode['X.1'].normalized).toBe('2011-07-06')
+    expect(parCode['Y.6'].normalized).toBe('178.35')
+    expect(parCode['K'].value).toContain('e242001/11640317402')
+  })
+
+  it('jamais inventé : P.1 illisible n’est pas rempli', () => {
+    const prefill = toVehiclePrefill(scan.fields)
+    expect(prefill.cylindreeCm3).toBeUndefined()
+  })
+
+  it('pré-remplissage fidèle au document réel', () => {
+    const prefill = toVehiclePrefill(scan.fields)
+    expect(prefill).toMatchObject({
+      immatriculation: 'AB-123-CD',
+      premiereImmatriculation: '1998-01-05',
+      annee: 1998,
+      marque: 'MERSSAIDESS',
+      modele: 'SR220TD',
+      vin: 'VF7X18E00018E8472',
+      carburant: 'diesel',
+    })
+  })
+})
+
+describe('honnêteté des niveaux de confiance', () => {
+  it('nombre bruité (« 30306.1.1307= ») jamais présenté comme validé', () => {
+    const s = parseCarteGrise('G 30306.1.1307=')
+    const g = s.fields.find((f) => f.code === 'G')
+    expect(g?.confidence).toBe('faible')
+    expect(g?.normalized).toBeUndefined()
+    expect(g?.note).toMatch(/bruitée/)
+  })
+
+  it('nombre propre reste haute confiance', () => {
+    const s = parseCarteGrise('F.1 1915')
+    expect(s.fields.find((f) => f.code === 'F.1')?.confidence).toBe('haute')
   })
 })

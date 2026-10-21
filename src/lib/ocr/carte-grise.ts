@@ -239,9 +239,14 @@ function classify(spec: FieldSpec, raw: string): Pick<ScanField, 'value' | 'norm
     }
     case 'vin': {
       const vin = normalizeVin(value)
-      return vin
-        ? { value, normalized: vin, confidence: vin === value.replace(/[\s.\-]/g, '').toUpperCase() ? 'haute' : 'moyenne' }
-        : { value, confidence: 'faible', note: 'VIN attendu sur 17 caractères' }
+      if (vin) {
+        return { value, normalized: vin, confidence: vin === value.replace(/[\s.\-]/g, '').toUpperCase() ? 'haute' : 'moyenne' }
+      }
+      const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      const note = /^[A-HJ-NPR-Z0-9]{17}$/.test(compact)
+        ? '17 caractères, mais lettres interdites dans un VIN (I, O, Q) — illisible ou hors norme'
+        : 'VIN attendu sur 17 caractères'
+      return { value, confidence: 'faible', note }
     }
     case 'immatriculation': {
       const plate = normalizePlate(value)
@@ -250,10 +255,32 @@ function classify(spec: FieldSpec, raw: string): Pick<ScanField, 'value' | 'norm
         : { value, confidence: 'moyenne', note: 'Format d’immatriculation non reconnu (SIV attendu : AB-123-CD)' }
     }
     case 'nombre': {
+      // Un nombre n'est « haute » confiance que si la valeur est propre
+      // (nombre seul ou avec une unité courte). Un nombre suivi de texte
+      // parasite court reste proposable en « moyenne ». « 30306.1.1307= »
+      // (nombres fusionnés) n'est jamais présenté comme un nombre validé.
+      const propre = /^(\d{1,3}(?:[ \u00a0]\d{3})+|\d+)([.,]\d+)?\s*(kg|cm3|cm³|kW|kw|CV|cv|dB|db|g\/km|tr\/min|%)?$/i.test(value)
       const n = normalizeNumber(value)
-      return n !== undefined
-        ? { value, normalized: String(n), confidence: 'haute' }
-        : { value, confidence: 'faible', note: 'Nombre non reconnu' }
+      if (propre && n !== undefined) {
+        return { value, normalized: String(n), confidence: 'haute' }
+      }
+      const avecParasite = /^(\d{1,3}(?:[ \u00a0]\d{3})+|\d+)([.,]\d+)?\s{2,}\D{1,6}$/.exec(value)
+      if (avecParasite) {
+        const n2 = normalizeNumber(avecParasite[1] + (avecParasite[2] ?? ''))
+        if (n2 !== undefined) {
+          return {
+            value,
+            normalized: String(n2),
+            confidence: 'moyenne',
+            note: 'Nombre suivi de texte parasite — vérifier sur le document',
+          }
+        }
+      }
+      return {
+        value,
+        confidence: 'faible',
+        note: 'Valeur bruitée autour du nombre — saisir ou vérifier sur le document',
+      }
     }
     case 'carburant': {
       const c = normalizeCarburant(value)
@@ -292,10 +319,21 @@ export function parseCarteGrise(text: string): CarteGriseScan {
 
   // Codes les plus longs d'abord (D.2.1 avant D.2, Z.1 avant Z…)
   const specs = [...CARTE_GRISE_FIELDS].sort((a, b) => b.code.length - a.code.length)
-  const codeAlt = specs.map((s) => s.code.replace(/\./g, '\\.')).join('|')
-  // Lookbehind : le séparateur avant le repère n'est jamais consommé, sinon
-  // « Y.5 Y.6 » perdrait Y.6 (l'espace avalé par la fin du match précédent).
-  const tokenRe = new RegExp(`(?<=^|\\s)(${codeAlt})\\b[\\s.:]*`, 'gi')
+  const codeKey = (c: string) => c.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  // Points optionnels : l'OCR écrit « P3 » ou « F2 » sans le point.
+  // Limite droite adaptée : les codes « nombre » peuvent être collés à leur
+  // valeur (« P290 » = P.2 → 90) — jamais pour les autres (sécurité « AB-123 »).
+  const motifCode = (s: FieldSpec) => {
+    const pointe = s.code
+      .split('.')
+      .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('\\.?')
+    return s.kind === 'nombre' ? `${pointe}(?![A-Za-zÀ-ÿ])` : `${pointe}\\b`
+  }
+  const codeAlt = specs.map(motifCode).join('|')
+  // Limite gauche en lookbehind : aucun caractère consommé avant le repère,
+  // sinon « Y.5 Y.6 » perdrait Y.6 (l'espace avalé par le match précédent).
+  const tokenRe = new RegExp(`(?<![A-Za-zÀ-ÿ0-9])(${codeAlt})[\\s.:]*`, 'gi')
 
   /** Découpe une ligne en segments [repère → valeur] : plusieurs repères par ligne possibles. */
   const segments = (ligne: string): Array<{ code: string; valeur: string }> => {
@@ -304,7 +342,8 @@ export function parseCarteGrise(text: string): CarteGriseScan {
     matches.forEach((m, i) => {
       const debut = (m.index ?? 0) + m[0].length
       const fin = i + 1 < matches.length ? (matches[i + 1].index ?? ligne.length) : ligne.length
-      out.push({ code: m[1].toUpperCase(), valeur: ligne.slice(debut, fin).trim() })
+      const brut = ligne.slice(debut, fin).trim().replace(/[|»«•]+\s*$/, '').trim()
+      out.push({ code: codeKey(m[1]), valeur: brut })
     })
     return out
   }
@@ -315,7 +354,7 @@ export function parseCarteGrise(text: string): CarteGriseScan {
     const segs = segments(ligne)
     for (const { code, valeur } of segs) {
       if (codesVus.has(code)) continue
-      const spec = specs.find((s) => s.code === code)
+      const spec = specs.find((s) => codeKey(s.code) === code)
       if (!spec) continue
       let val = valeur
       if (!val) {
@@ -333,7 +372,7 @@ export function parseCarteGrise(text: string): CarteGriseScan {
       if (!val) continue
       codesVus.add(code)
       consomme.add(i)
-      fields.push({ code, label: spec.label, target: spec.target, sensitive: spec.sensitive, ...classify(spec, val) })
+      fields.push({ code: spec.code, label: spec.label, target: spec.target, sensitive: spec.sensitive, ...classify(spec, val) })
     }
   })
 
@@ -365,6 +404,107 @@ export function parseCarteGrise(text: string): CarteGriseScan {
       codesVus.add(code)
       break
     }
+  }
+
+  // --- 2bis. Bande MRZ (BIS, en bas de carte grise) : imprimée en OCR-B,
+  //     elle reste lisible quand le reste est bruité. Le VIN est extrait de
+  //     façon positionnelle — juste après l'immatriculation connue — jamais
+  //     deviné. Marque et type proviennent de la ligne structurée « CI<<…<<… ».
+  const vinCharset = (c: string) => /^[A-HJ-NPR-Z0-9]$/.test(c)
+  const vinValide = (s: string) =>
+    s.length === 17 && [...s].every(vinCharset) && /[A-HJ-NPR-Z]/.test(s) && /[0-9]/.test(s)
+  const ancre = (fields.find((f) => f.code === 'A' && f.normalized)?.normalized ?? '')
+    .replace(/[^A-Z0-9]/gi, '')
+    .toUpperCase()
+  const runs = lignes.filter((l) => l.replace(/[^A-Z0-9]/gi, '').length >= 30)
+
+  let mrzVin: string | undefined
+  if (ancre) {
+    for (const l of runs) {
+      const compact = l.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      const idxAncre = compact.indexOf(ancre)
+      if (idxAncre === -1) continue
+      // Le format BIS place un séparateur (0/O/check) entre l'immatriculation
+      // et le VIN : on essaie les positions 0 à 3 et on privilégie un VIN
+      // commençant par une lettre (cas réel), le plus proche de l'ancre.
+      const candidats: Array<{ suite: string; priorite: number }> = []
+      for (let skip = 0; skip <= 3; skip++) {
+        const suite = compact.slice(idxAncre + ancre.length + skip, idxAncre + ancre.length + skip + 17)
+        if (vinValide(suite)) {
+          candidats.push({ suite, priorite: /^[A-HJ-NPR-Z]/.test(suite) ? skip : 10 + skip })
+        }
+      }
+      candidats.sort((a, b) => a.priorite - b.priorite)
+      if (candidats.length > 0) {
+        mrzVin = candidats[0].suite
+        break
+      }
+    }
+  }
+  if (!mrzVin) {
+    // Sans ancre : uniquement si UN SEUL VIN plausible figure dans les bandes
+    const candidats = new Set<string>()
+    for (const l of runs) {
+      const compact = l.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      for (let i = 0; i + 17 <= compact.length; i++) {
+        const w = compact.slice(i, i + 17)
+        if (vinValide(w)) candidats.add(w)
+      }
+    }
+    if (candidats.size === 1) mrzVin = [...candidats][0]
+  }
+
+  const noteMrz = 'Extrait de la bande MRZ (caractères ambigus possibles : O/0, I/1) — à vérifier'
+  if (mrzVin) {
+    const existant = fields.find((f) => f.code === 'E')
+    const base = {
+      code: 'E',
+      label: specs.find((s) => s.code === 'E')!.label,
+      target: specs.find((s) => s.code === 'E')!.target,
+      value: mrzVin,
+      normalized: mrzVin,
+      confidence: 'moyenne' as const,
+      note: noteMrz,
+    }
+    if (existant) {
+      if (existant.normalized !== mrzVin) Object.assign(existant, base)
+    } else {
+      fields.push(base)
+      codesVus.add('E')
+    }
+  }
+
+  // Marque / type depuis la ligne 2 de la bande : « CI<<MERSSAIDESS<<SR22OTD<<… »
+  for (const l of lignes) {
+    if (!l.includes('<<')) continue
+    const parts = l.toUpperCase().split(/<+/).map((s) => s.trim()).filter(Boolean)
+    if (parts.length < 3 || !/^[A-Z]{2}$/.test(parts[0])) continue
+    const depuisMrz = (code: string, valeur: string, forme: RegExp) => {
+      if (!forme.test(valeur)) return
+      const spec = specs.find((s) => s.code === code)
+      if (!spec) return
+      const existant = fields.find((f) => f.code === code)
+      // Une lecture directe de la carte (même « moyenne ») prime sur le MRZ
+      if (existant && existant.confidence !== 'faible') return
+      const base = {
+        code,
+        label: spec.label,
+        target: spec.target,
+        sensitive: spec.sensitive,
+        value: valeur,
+        normalized: valeur,
+        confidence: 'moyenne' as const,
+        note: noteMrz,
+      }
+      if (existant) Object.assign(existant, base)
+      else {
+        fields.push(base)
+        codesVus.add(codeKey(code))
+      }
+    }
+    depuisMrz('D.1', parts[1], /^[A-Z]{3,}$/)
+    depuisMrz('D.3', parts[2], /^[A-Z0-9]{3,}$/)
+    break
   }
 
   // --- 3. Secours par forme : même si le repère a été vu avec une valeur
@@ -423,11 +563,12 @@ export function parseCarteGrise(text: string): CarteGriseScan {
 
   // --- Fragments non interprétés : signalés, jamais masqués
   const interpretees = new Set(fields.map((f) => f.value.toLowerCase()))
-  const nonInterpretes = lignes
-    .filter((_, i) => !consomme.has(i))
-    .filter((l) => ![...interpretees].some((v) => v && l.toLowerCase().includes(v)))
-    .filter((l) => l.length > 2)
-    .slice(0, 20)
+  const nonInterpretes = [...new Set(
+    lignes
+      .filter((_, i) => !consomme.has(i))
+      .filter((l) => ![...interpretees].some((v) => v && l.toLowerCase().includes(v)))
+      .filter((l) => l.length > 2),
+  )].slice(0, 20)
 
   return { fields, nonInterpretes }
 }
