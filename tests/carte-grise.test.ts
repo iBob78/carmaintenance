@@ -484,13 +484,42 @@ describe('secours MRZ robuste', () => {
     expect(s.fields.find((f) => f.code === 'D.1')?.value).toBe('MERCEDES')
   })
 
-  it('un E déjà rempli de déchet est remplacé par le VIN de la bande MRZ', () => {
+  it('le champ E imprimé prime sur la bande MRZ divergente (spécimen incohérent)', () => {
     const s = parseCarteGrise(
       'E VFSIV2009ASTV2009\nA AB-123-CD\nCRFRAAB123CDOVF7X18E00018E847219801059VP<<<<',
     )
-    const e = s.fields.find((f) => f.code === 'E')
-    expect(e?.normalized).toBe('VF7X18E00018E8472')
-    expect(e?.note).toMatch(/MRZ/i)
+    const e = s.fields.find((f) => f.code === 'E')!
+    expect(e.value).toBe('VFSIV2009ASTV2009') // valeur imprimée au repère E
+    expect(e.normalized).toBeUndefined() // jamais validée d'office (I interdit)
+    expect(e.note).toMatch(/interdites/)
+    expect(e.note).toContain('VF7X18E00018E8472') // la MRZ divergente est signalée
+  })
+
+  it('un E vide ou fragmentaire reste secouru par la bande MRZ', () => {
+    const s = parseCarteGrise(
+      'E â ;\nA AB-123-CD\nCRFRAAB123CDOVF7X18E00018E847219801059VP<<<<',
+    )
+    const e = s.fields.find((f) => f.code === 'E')!
+    expect(e.normalized).toBe('VF7X18E00018E8472')
+    expect(e.note).toMatch(/MRZ/i)
+  })
+
+  it('jamais de fenêtre plaque+date comme VIN (« AAB123CDB05011998 »)', () => {
+    const s = parseCarteGrise(
+      'A AB-123-CD\nB 05/01/1998\n' +
+        'AB123CDAAB123CDB05011998C1DUPONT25072008V10000257EXTRA\n' +
+        'CRFRAAB123CDOVF7X18E00018E847219801059VP<<<<',
+    )
+    const e = s.fields.find((f) => f.code === 'E')!
+    expect(e.normalized).toBe('VF7X18E00018E8472')
+    expect(e.value).not.toContain('AAB123')
+  })
+
+  it('une ligne plaque+date seule ne produit jamais de VIN', () => {
+    const s = parseCarteGrise(
+      'A AB-123-CD\nB 05/01/1998\nAB123CDAAB123CDB05011998C1DUPONT25072008V10000257EXTRA',
+    )
+    expect(s.fields.find((f) => f.code === 'E')).toBeUndefined()
   })
 
   it('texte illisible en mots courts (« CI 43 CI = ») : faible, jamais validé', () => {

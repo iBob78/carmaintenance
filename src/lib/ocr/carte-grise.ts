@@ -282,10 +282,16 @@ function classify(spec: FieldSpec, raw: string): Pick<ScanField, 'value' | 'norm
         return { value, normalized: vin, confidence: vin === value.replace(/[\s.\-]/g, '').toUpperCase() ? 'haute' : 'moyenne' }
       }
       const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, '')
-      const note = /^[A-HJ-NPR-Z0-9]{17}$/.test(compact)
-        ? '17 caractères, mais lettres interdites dans un VIN (I, O, Q) — illisible ou hors norme'
-        : 'VIN attendu sur 17 caractères'
-      return { value, confidence: 'faible', note }
+      if (/^[A-Z0-9]{17}$/.test(compact)) {
+        // 17 caractères complets, mais I/O/Q : la valeur IMPRIMÉE au repère E
+        // est conservée (spécimen possible) — jamais remplacée en silence.
+        return {
+          value,
+          confidence: 'moyenne',
+          note: '17 caractères, mais lettres interdites dans un VIN (I, O, Q) — hors norme ISO, vérifier sur le document (spécimen possible)',
+        }
+      }
+      return { value, confidence: 'faible', note: 'VIN attendu sur 17 caractères' }
     }
     case 'immatriculation': {
       const plate = normalizePlate(value)
@@ -465,10 +471,30 @@ export function parseCarteGrise(text: string): CarteGriseScan {
   const ancre = (fields.find((f) => f.code === 'A' && f.normalized)?.normalized ?? '')
     .replace(/[^A-Z0-9]/gi, '')
     .toUpperCase()
-  const runs = lignes.filter((l) => l.replace(/[^A-Z0-9]/gi, '').length >= 30)
+  // Fragments du document qu'un VIN ne contient JAMAIS : la plaque et la date
+  // de 1re immatriculation (« AAB123CDB05011998 » = plaque + date collées).
+  const interdits: string[] = []
+  if (ancre) interdits.push(ancre)
+  const champB = fields.find((f) => f.code === 'B')
+  for (const brut of [champB?.normalized, champB?.value]) {
+    if (!brut) continue
+    const compact = brut.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+    if (compact.length >= 6) interdits.push(compact)
+    const [y, m, d] = (champB?.normalized ?? '').split('-')
+    if (y && m && d) interdits.push(`${d}${m}${y}`)
+  }
+  const suspect = (suite: string) => interdits.some((x) => suite.includes(x))
+
+  // Bande MRZ authentique uniquement : lignes à padding « < » (format BIS).
+  // Une ligne fusionnée « AB-123-CD A AB-123-CD B 05/01/1998 » n'est pas une
+  // bande MRZ et ne doit jamais produire de VIN.
+  const runs = lignes.filter((l) => l.includes('<') && l.replace(/[^A-Z0-9]/gi, '').length >= 30)
 
   let mrzVin: string | undefined
   if (ancre) {
+    // Toutes les bandes sont consultées ; elles doivent CONCORDER sur le même
+    // VIN (jamais deviné entre plusieurs lectures divergentes).
+    const meilleurs: Array<{ suite: string; priorite: number }> = []
     for (const l of runs) {
       const compact = l.toUpperCase().replace(/[^A-Z0-9]/g, '')
       const idxAncre = compact.indexOf(ancre)
@@ -479,16 +505,15 @@ export function parseCarteGrise(text: string): CarteGriseScan {
       const candidats: Array<{ suite: string; priorite: number }> = []
       for (let skip = 0; skip <= 3; skip++) {
         const suite = compact.slice(idxAncre + ancre.length + skip, idxAncre + ancre.length + skip + 17)
-        if (vinValide(suite)) {
+        if (vinValide(suite) && !suspect(suite)) {
           candidats.push({ suite, priorite: /^[A-HJ-NPR-Z]/.test(suite) ? skip : 10 + skip })
         }
       }
       candidats.sort((a, b) => a.priorite - b.priorite)
-      if (candidats.length > 0) {
-        mrzVin = candidats[0].suite
-        break
-      }
+      if (candidats.length > 0) meilleurs.push(candidats[0])
     }
+    const distincts = new Set(meilleurs.map((c) => c.suite))
+    if (distincts.size === 1) mrzVin = [...distincts][0]
   }
   if (!mrzVin) {
     // Sans ancre : les lignes « pleine valeur » (coupon détachable) sont bien
@@ -500,14 +525,14 @@ export function parseCarteGrise(text: string): CarteGriseScan {
       // Un jeton isolé de 17 caractères valides est une lecture « pleine »
       // (coupon détachable, ligne de repère E) — bien plus fiable qu'une fenêtre.
       for (const mot of l.toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean)) {
-        if (vinValide(mot)) pleines.add(mot)
+        if (vinValide(mot) && !suspect(mot)) pleines.add(mot)
       }
       const compact = l.toUpperCase().replace(/[^A-Z0-9]/g, '')
-      if (vinValide(compact)) pleines.add(compact)
-      if (compact.length >= 30) {
+      if (vinValide(compact) && !suspect(compact)) pleines.add(compact)
+      if (l.includes('<') && compact.length >= 30) {
         for (let i = 0; i + 17 <= compact.length; i++) {
           const w = compact.slice(i, i + 17)
-          if (vinValide(w)) fenetres.add(w)
+          if (vinValide(w) && !suspect(w)) fenetres.add(w)
         }
       }
     }
@@ -532,7 +557,21 @@ export function parseCarteGrise(text: string): CarteGriseScan {
       note: ancre ? noteMrz : noteForme,
     }
     if (existant) {
-      if (existant.normalized !== mrzVin) Object.assign(existant, base)
+      const lue = existant.value.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+      const complete = /^[A-Z0-9]{17}$/.test(lue)
+      if (!complete) {
+        // Champ E vide ou fragmentaire : la bande MRZ (ou la forme) le secourt.
+        Object.assign(existant, base)
+      } else if (lue !== mrzVin.toUpperCase()) {
+        // Valeur COMPLÈTE imprimée au repère E : elle fait foi — sur un
+        // spécimen, la bande MRZ peut être incohérente avec le champ E.
+        existant.note = [
+          existant.note,
+          `La bande MRZ donne « ${mrzVin} » — divergence possible sur un spécimen, à vérifier sur le document`,
+        ]
+          .filter(Boolean)
+          .join(' ; ')
+      }
     } else {
       fields.push(base)
       codesVus.add('E')
