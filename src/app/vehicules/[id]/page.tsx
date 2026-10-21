@@ -24,7 +24,8 @@ import {
   SERVICE_STATUS_LABELS,
   SOURCE_LABELS,
 } from '@/lib/domain/catalog'
-import { duesForVehicle } from '@/lib/domain/due'
+import { computeDue, duesForVehicle } from '@/lib/domain/due'
+import { formatInterval, reminderForOperation, scheduleForVehicle } from '@/lib/domain/schedule'
 import { computeExpenseTotals } from '@/lib/domain/totals'
 import { detectAnomalies, missingVehicleFields } from '@/lib/domain/anomalies'
 import { formatDateShort, formatEuro, formatKm, classNames } from '@/lib/domain/format'
@@ -102,6 +103,7 @@ export default function VehicleDetailPage() {
   const dues = duesForVehicle(db, vehicleId)
   const anomalies = detectAnomalies(db, vehicleId)
   const missing = missingVehicleFields(vehicle)
+  const plan = scheduleForVehicle(vehicle)
 
   return (
     <div className="space-y-6">
@@ -553,6 +555,86 @@ export default function VehicleDetailPage() {
               </div>
             )}
           </div>
+
+          {plan && (
+            <div>
+              <SectionTitle>
+                <span className="inline-flex items-center gap-2">
+                  <Wrench className="h-5 w-5 text-slate-400" />
+                  Planning d’entretien — {plan.marques.join(' / ')} {plan.modeles[0]}
+                </span>
+              </SectionTitle>
+              <p className="mb-3 text-xs text-slate-500">
+                Périodités du constructeur pour cette motorisation
+                {vehicle.motorisation ? ` (${vehicle.motorisation}` : ''}
+                {vehicle.codeMoteur ? ` · ${vehicle.codeMoteur}` : ''}
+                {vehicle.motorisation ? ')' : ''} — à vérifier sur votre carnet d’entretien.
+              </p>
+              <Card className="overflow-hidden">
+                <ul className="divide-y divide-slate-100">
+                  {plan.operations.map((op) => {
+                    const due = computeDue(
+                      vehicle,
+                      {
+                        categorie: op.categorie,
+                        libelle: op.libelle,
+                        intervalleKm: op.intervalleKm ?? null,
+                        intervalleMois: op.intervalleMois ?? null,
+                        actif: true,
+                      },
+                      records,
+                    )
+                    const rappelActif = reminders.find(
+                      (r) => r.libelle === op.libelle && (r.statut === 'a_faire' || r.statut === 'en_retard'),
+                    )
+                    return (
+                      <li key={op.libelle} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-900">{op.libelle}</p>
+                          <p className="text-xs text-slate-500">
+                            {formatInterval(op)}
+                            {due && (
+                              <>
+                                {' · prochain : '}
+                                {due.dueKm != null ? formatKm(due.dueKm) : ''}
+                                {due.dueKm != null && due.dueDate != null ? ' ou ' : ''}
+                                {due.dueDate != null ? formatDateShort(due.dueDate) : ''}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        {op.gravite === 'critique' && <Badge tone="rose">critique</Badge>}
+                        {rappelActif ? (
+                          <Button variant="outline" onClick={() => store.removeReminder(rappelActif.id)}>
+                            Rappel actif — retirer
+                          </Button>
+                        ) : due ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => store.addReminder(reminderForOperation(vehicleId, op, due))}
+                          >
+                            Activer le rappel
+                          </Button>
+                        ) : null}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </Card>
+              <p className="mt-2 text-xs text-slate-400">
+                Sources :{' '}
+                {plan.sources.map((s, i) => (
+                  <span key={s.url}>
+                    {i > 0 ? ' · ' : ''}
+                    <a className="underline hover:text-slate-600" href={s.url} target="_blank" rel="noreferrer">
+                      {s.label}
+                    </a>
+                  </span>
+                ))}
+              </p>
+              {plan.notes && <p className="mt-1 text-xs text-amber-700">{plan.notes}</p>}
+            </div>
+          )}
 
           <div>
             <SectionTitle
