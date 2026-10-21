@@ -97,7 +97,7 @@ Options → Prévisualiser → Générer et télécharger**.
 | PDF | **@react-pdf/renderer** (génération **côté serveur**) |
 | OCR | **tesseract.js** (lecture de carte grise / factures **dans le navigateur**, sans serveur ni clé API) |
 | Données | Mode **démo local** (localStorage) + adaptateur **Supabase** (Auth, PostgreSQL, Storage privé) |
-| Tests | **Vitest** (61 tests unitaires et d'intégration) |
+| Tests | **Vitest** (71 tests unitaires et d'intégration) |
 | Licence | **GPL-3.0** |
 
 > Le mode **démo** est actif par défaut : aucune configuration n'est nécessaire,
@@ -122,9 +122,14 @@ Autres commandes :
 ```bash
 npm run build      # build de production
 npm start          # serveur de production
-npm test           # 61 tests Vitest
+npm test           # 71 tests Vitest
 npm run typecheck  # vérification TypeScript
+npm run dev:clean  # dev avec purge du cache (si « Cannot find module './xxx.js' »)
 ```
+
+> **Dépannage** : si le serveur de développement affiche une erreur
+> « Cannot find module './…js' » (cache webpack périmé après une mise à jour
+> des dépendances), lancez `npm run dev:clean` — le cache `.next` est régénéré.
 
 ### Variables d'environnement (mode Supabase)
 
@@ -182,7 +187,7 @@ POST /api/vehicles/{vehicleId}/reports/sale
 npm test
 ```
 
-61 tests couvrant notamment : présence/absence des sections sélectionnées,
+71 tests couvrant notamment : présence/absence des sections sélectionnées,
 pagination d'un historique volumineux (60 interventions), gestion des
 kilométrages inconnus ou incohérents, exactitude des totaux et
 remboursements, masquage des données personnelles (y compris factures),
