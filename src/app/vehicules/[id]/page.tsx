@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import {
   AlertTriangle,
+  ArrowRight,
   CalendarClock,
   FileText,
   Gauge,
@@ -635,6 +636,27 @@ export default function VehicleDetailPage() {
               {plan.notes && <p className="mt-1 text-xs text-amber-700">{plan.notes}</p>}
             </div>
           )}
+
+          <Card className="border-brand-100 bg-brand-50/60 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-2xl">
+                <p className="text-sm font-semibold text-slate-900">Conseils d’entretien</p>
+                <ul className="mt-1.5 space-y-1 text-xs text-slate-600">
+                  <li>· Vérifiez le niveau d’huile tous les 15 jours et avant un long trajet.</li>
+                  <li>· Contrôlez la pression des pneus régulièrement : sécurité et consommation.</li>
+                  <li>· Usage difficile (trajets courts, ville, remorquage) : intervenez plus tôt, parfois deux fois plus souvent.</li>
+                </ul>
+                <p className="mt-2 text-xs text-slate-400">Repères généraux — à vérifier sur votre carnet d’entretien.</p>
+              </div>
+              <Link
+                href="/conseils"
+                className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
+              >
+                Tous les conseils
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </Card>
 
           <div>
             <SectionTitle

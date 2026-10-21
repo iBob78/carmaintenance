@@ -9,6 +9,7 @@ import {
   FileText,
   FolderOpen,
   LayoutDashboard,
+  Lightbulb,
   Menu,
   Settings,
   Sparkles,
@@ -22,6 +23,7 @@ const NAV = [
   { href: '/', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/vehicules', label: 'Mes véhicules', icon: Car },
   { href: '/documents', label: 'Documents', icon: FolderOpen },
+  { href: '/conseils', label: 'Conseils', icon: Lightbulb },
   { href: '/reglages', label: 'Réglages', icon: Settings },
 ]
 
