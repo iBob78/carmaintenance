@@ -39,7 +39,7 @@ export default function ConseilsPage() {
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {adviceMilestones.map((milestone) => (
           <Card key={milestone.id} className="flex flex-col overflow-hidden p-0">
-            <div className="border-b border-slate-200 bg-slate-700 px-4 py-3 text-white">
+            <div className="border-b border-slate-200 bg-slate-700 px-4 py-3 text-white dark:bg-[#334155]">
               <p className="text-lg font-bold tracking-tight">{milestone.titre}</p>
               <p className="mt-0.5 text-xs text-slate-300">{milestone.sousTitre}</p>
             </div>

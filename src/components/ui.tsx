@@ -18,7 +18,7 @@ export function Button({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
   const styles: Record<ButtonVariant, string> = {
     primary: 'bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-600/20 focus-visible:outline-brand-600',
-    secondary: 'bg-slate-900 text-white hover:bg-slate-800 focus-visible:outline-slate-900',
+    secondary: 'bg-slate-900 text-white hover:bg-slate-800 focus-visible:outline-slate-900 dark:bg-[#334155] dark:hover:bg-[#475569]',
     outline: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-slate-400',
     ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-slate-400',
     danger: 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:outline-rose-600',
@@ -53,7 +53,7 @@ export function Card({ children, className, ...props }: React.HTMLAttributes<HTM
 
 export function SectionTitle({ children, action, className }: { children: React.ReactNode; action?: React.ReactNode; className?: string }) {
   return (
-    <div className={classNames('mb-4 flex items-center justify-between gap-4', className)}>
+    <div className={classNames('mb-4 flex flex-wrap items-center justify-between gap-2 sm:gap-4', className)}>
       <h2 className="text-lg font-semibold tracking-tight text-slate-900">{children}</h2>
       {action}
     </div>
@@ -180,7 +180,7 @@ export function Modal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/50 p-0 backdrop-blur-sm dark:bg-black/60 sm:items-center sm:p-6">
       <div
         className={classNames(
           'w-full rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl',
@@ -266,7 +266,7 @@ export function Tabs({
           onClick={() => onChange(t.id)}
           className={classNames(
             'whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition',
-            active === t.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50',
+            active === t.id ? 'bg-slate-900 text-white dark:bg-[#334155]' : 'text-slate-600 hover:bg-slate-50',
           )}
         >
           {t.label}

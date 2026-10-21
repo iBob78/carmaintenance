@@ -2,13 +2,15 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ArrowRight,
   CalendarClock,
+  Check,
   FileText,
   Gauge,
+  Clock,
   Pencil,
   Plus,
   Receipt,
@@ -29,7 +31,8 @@ import { computeDue, duesForVehicle } from '@/lib/domain/due'
 import { formatInterval, reminderForOperation, scheduleForVehicle } from '@/lib/domain/schedule'
 import { computeExpenseTotals } from '@/lib/domain/totals'
 import { detectAnomalies, missingVehicleFields } from '@/lib/domain/anomalies'
-import { formatDateShort, formatEuro, formatKm, classNames } from '@/lib/domain/format'
+import { formatDate, formatDateShort, formatEuro, formatKm, classNames, todayISO } from '@/lib/domain/format'
+import { timelineForVehicle, todaySplitIndex, type TimelineEntry, type TimelineEtat } from '@/lib/domain/timeline'
 import type { ExpenseEntry, FaultAndTest, ServiceRecord, Vehicle } from '@/lib/domain/types'
 import { Badge, Button, Card, EmptyState, Modal, Progress, SectionTitle, Tabs } from '@/components/ui'
 import {
@@ -45,6 +48,7 @@ import { ScanPhotoButton, FactureReview } from '@/components/scan'
 import { parseFacture, type FactureScan, type ServicePrefill } from '@/lib/ocr/facture'
 
 const TABS = [
+  { id: 'chronologie', label: 'Chronologie' },
   { id: 'entretiens', label: 'Carnet d’entretien' },
   { id: 'pannes', label: 'Pannes & réparations' },
   { id: 'depenses', label: 'Dépenses' },
@@ -52,12 +56,63 @@ const TABS = [
   { id: 'echeances', label: 'Échéances & relevés' },
 ]
 
+const TIMELINE_MARKERS: Record<TimelineEtat, { icon: typeof Check; className: string; badge: 'slate' | 'brand' | 'green' | 'amber' | 'rose' | 'sky' | undefined; label: string }> = {
+  effectue: { icon: Check, className: 'bg-emerald-500 text-white', badge: undefined, label: 'Effectué' },
+  prevu: { icon: CalendarClock, className: 'bg-brand-500 text-white', badge: 'brand', label: 'Prévu' },
+  retard: { icon: AlertTriangle, className: 'bg-rose-500 text-white', badge: 'rose', label: 'En retard' },
+  urgent: { icon: Clock, className: 'bg-amber-500 text-white', badge: 'amber', label: 'Urgent' },
+  bientot: { icon: Clock, className: 'bg-sky-500 text-white', badge: 'sky', label: 'Bientôt' },
+  ok: { icon: Clock, className: 'bg-slate-400 text-white', badge: 'slate', label: 'À venir' },
+}
+
+function TodaySeparator() {
+  return (
+    <li className="relative flex items-center gap-3 pb-6 pl-8">
+      <span className="absolute -left-4 flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-brand-700 ring-4 ring-white">
+        <CalendarClock className="h-4 w-4" />
+      </span>
+      <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">
+        Aujourd’hui · {formatDate(todayISO())}
+      </p>
+    </li>
+  )
+}
+
+function TimelineRow({ entry }: { entry: TimelineEntry }) {
+  const marker = TIMELINE_MARKERS[entry.etat]
+  const Icon = marker.icon
+  return (
+    <li className="relative pb-6 pl-8">
+      <span
+        className={classNames(
+          'absolute -left-4 top-0 flex h-8 w-8 items-center justify-center rounded-full ring-4 ring-white',
+          marker.className,
+        )}
+      >
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-400">
+          {entry.date ? formatDate(entry.date) : 'Date à définir'}
+          {entry.km != null && ` · ${formatKm(entry.km)}`}
+        </p>
+        <p className="mt-0.5 text-sm font-semibold text-slate-900">{entry.libelle}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <Badge tone="slate">{SERVICE_CATEGORIES[entry.categorie].short}</Badge>
+          {marker.badge && <Badge tone={marker.badge}>{marker.label}</Badge>}
+        </div>
+        <p className="mt-1 text-xs text-slate-500">{entry.detail}</p>
+      </div>
+    </li>
+  )
+}
+
 export default function VehicleDetailPage() {
   const params = useParams<{ id: string }>()
   const vehicleId = params.id
   const store = useStore()
   const { db, ready } = store
-  const [tab, setTab] = useState('entretiens')
+  const [tab, setTab] = useState('chronologie')
 
   // Modales
   const [serviceModal, setServiceModal] = useState<{ open: boolean; editing?: ServiceRecord }>({ open: false })
@@ -102,6 +157,8 @@ export default function VehicleDetailPage() {
   const purchases = db.purchases.filter((p) => p.vehicleId === vehicleId)
   const totals = computeExpenseTotals(expenses)
   const dues = duesForVehicle(db, vehicleId)
+  const timeline = timelineForVehicle(db, vehicleId)
+  const timelineSplit = todaySplitIndex(timeline)
   const anomalies = detectAnomalies(db, vehicleId)
   const missing = missingVehicleFields(vehicle)
   const plan = scheduleForVehicle(vehicle)
@@ -175,6 +232,36 @@ export default function VehicleDetailPage() {
       </Card>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
+
+      {/* ---------------------------------------------------------------- */}
+      {tab === 'chronologie' && (
+        <section>
+          <SectionTitle>Résumé chronologique</SectionTitle>
+          <Card className="p-6">
+            {timeline.length === 0 ? (
+              <EmptyState
+                icon={<CalendarClock className="h-6 w-6" />}
+                title="Aucun historique à afficher"
+                description="Ajoutez des interventions réalisées ou des rappels pour construire la chronologie de ce véhicule."
+              />
+            ) : (
+              <ol className="relative ml-4 border-l border-slate-200">
+                {timeline.map((entry, i) => (
+                  <Fragment key={entry.id}>
+                    {i === timelineSplit && <TodaySeparator />}
+                    <TimelineRow entry={entry} />
+                  </Fragment>
+                ))}
+                {timelineSplit === timeline.length && <TodaySeparator />}
+              </ol>
+            )}
+          </Card>
+          <p className="mt-3 text-xs text-slate-400">
+            Chronologie calculée uniquement à partir du carnet d’entretien, des rappels et des
+            tâches planifiées enregistrés — aucune donnée n’est estimée.
+          </p>
+        </section>
+      )}
 
       {/* ---------------------------------------------------------------- */}
       {tab === 'entretiens' && (
@@ -500,7 +587,7 @@ export default function VehicleDetailPage() {
             </SectionTitle>
             <div className="space-y-3">
               {dues.map((d, i) => (
-                <Card key={i} className="flex items-center gap-4 p-4">
+                <Card key={i} className="flex flex-wrap items-center gap-3 p-4 sm:gap-4">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-900">{d.libelle}</p>
                     <p className="text-xs text-slate-500">
@@ -531,7 +618,7 @@ export default function VehicleDetailPage() {
                 <h3 className="mb-2 text-sm font-semibold text-slate-700">Rappels personnels</h3>
                 <div className="space-y-2">
                   {reminders.map((r) => (
-                    <Card key={r.id} className="flex items-center gap-3 p-3.5">
+                    <Card key={r.id} className="flex flex-wrap items-center gap-3 p-3.5">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-slate-900">{r.libelle}</p>
                         <p className="text-xs text-slate-500">
@@ -675,10 +762,10 @@ export default function VehicleDetailPage() {
             <Card className="overflow-hidden">
               <ul className="divide-y divide-slate-100">
                 {readings.map((r) => (
-                  <li key={r.id} className="flex items-center gap-3 px-5 py-3">
-                    <p className="w-28 text-sm text-slate-600">{formatDateShort(r.date)}</p>
-                    <p className="w-32 text-sm font-semibold text-slate-900">{formatKm(r.valeurKm)}</p>
-                    <p className="flex-1 text-xs text-slate-500">{SOURCE_LABELS[r.sourceInformation]}</p>
+                  <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3">
+                    <p className="w-24 shrink-0 text-sm text-slate-600">{formatDateShort(r.date)}</p>
+                    <p className="w-28 shrink-0 text-sm font-semibold text-slate-900">{formatKm(r.valeurKm)}</p>
+                    <p className="min-w-0 flex-1 text-xs text-slate-500">{SOURCE_LABELS[r.sourceInformation]}</p>
                     {r.note && <p className="text-xs italic text-slate-400">{r.note}</p>}
                   </li>
                 ))}

@@ -83,7 +83,7 @@ export default function VehiclesPage() {
                 <div className="p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white dark:bg-[#334155]">
                         <Car className="h-6 w-6" />
                       </div>
                       <div>

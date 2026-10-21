@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { classNames } from '@/lib/domain/format'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { useStore } from '@/lib/data/store'
 
 const NAV = [
@@ -42,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Barre latérale */}
       <aside
         className={classNames(
-          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-slate-900 text-white transition-transform duration-200 lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-slate-900 text-white transition-transform duration-200 dark:bg-[#020617] lg:static lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -56,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <button
             onClick={() => setOpen(false)}
-            className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 lg:hidden"
+            className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 dark:hover:bg-[#1e293b] lg:hidden"
             aria-label="Fermer le menu"
           >
             <X className="h-5 w-5" />
@@ -74,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 onClick={() => setOpen(false)}
                 className={classNames(
                   'flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition',
-                  active ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                  active ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800 hover:text-white dark:hover:bg-[#1e293b]',
                 )}
               >
                 <item.icon className="h-4.5 w-4.5" />
@@ -99,7 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
 
-          <div className="rounded-2xl bg-slate-800/80 p-3 text-xs text-slate-400">
+          <div className="rounded-2xl bg-slate-800/80 p-3 text-xs text-slate-400 dark:bg-[#0f172a]">
             <p className="flex items-center gap-1.5 font-medium text-slate-300">
               <CalendarClock className="h-3.5 w-3.5" />
               {mode === 'demo' ? 'Mode démonstration' : 'Connecté à Supabase'}
@@ -126,11 +127,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
-              <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">
-                Carnet d&apos;entretien · Pannes · Dépenses · Rapport de vente
-              </span>
+            <div className="ml-auto flex items-center gap-3">
+              <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  Carnet d&apos;entretien · Pannes · Dépenses · Rapport de vente
+                </span>
+              </div>
+              <ThemeToggle />
             </div>
           </div>
         </header>

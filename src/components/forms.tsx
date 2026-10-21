@@ -313,8 +313,8 @@ export function ServiceRecordForm({
         {items.length === 0 && <p className="text-xs text-slate-400">Aucune ligne pour l&apos;instant.</p>}
         <div className="space-y-2">
           {items.map((it, idx) => (
-            <div key={idx} className="grid grid-cols-12 items-end gap-2">
-              <div className="col-span-3">
+            <div key={idx} className="grid grid-cols-2 items-end gap-2 sm:grid-cols-12">
+              <div className="col-span-1 sm:col-span-3">
                 <Select
                   value={it.kind}
                   onChange={(e) =>
@@ -328,14 +328,14 @@ export function ServiceRecordForm({
                   <option value="autre">Autre</option>
                 </Select>
               </div>
-              <div className="col-span-4">
+              <div className="col-span-1 sm:col-span-4">
                 <Input
                   placeholder="Désignation"
                   value={it.libelle}
                   onChange={(e) => setItems((x) => x.map((v, i) => (i === idx ? { ...v, libelle: e.target.value } : v)))}
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <Input
                   placeholder="Réf."
                   value={it.reference ?? ''}
