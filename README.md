@@ -1,62 +1,185 @@
-# AutoCarnet — carmaintenance
+# AutoCarnet — carnet d'entretien automobile libre et transparent
 
-Application web de **gestion de la maintenance de votre véhicule** : enregistrez vos vidanges avec date et kilométrage, visualisez les prochains kilométrages d'entretien prévus et consultez le calendrier de vos révisions périodiques.
+Projet open-source (licence **GPL-3.0**) pour les passionnés et les mécaniciens
+DIY : un carnet d'entretien automobile **gratuit, moderne, transparent, sécurisé
+et exploitable**, sur desktop comme sur mobile.
+
+Deux priorités absolues structurent le projet :
+
+1. un **carnet d'entretien fiable** (historique daté, sourcé, vérifiable) ;
+2. un **rapport de vente PDF professionnel** : chaque donnée affichée est
+   traçable, chaque manque est signalé, et le document précise explicitement
+   qu'il **ne constitue pas une expertise** de l'état mécanique du véhicule.
+
+---
 
 ## Fonctionnalités
 
-- **🚗 Mes véhicules** — multi-véhicules : marque, modèle, immatriculation, carburant, kilométrage actuel.
-- **🛢️ Vidanges & entretiens** — historique complet avec date, kilométrage, coût, garage et notes (vidange, filtres, freins, pneus, distribution, contrôle technique…).
-- **⏰ Prochaines échéances** — calcul automatique du prochain kilométrage et/ou de la date de chaque entretien, avec alertes « Urgent / Bientôt / OK » et estimation de date selon votre rythme de conduite réel.
-- **📅 Calendrier de révisions périodiques** — échéancier prévisionnel groupé par mois (horizon 6 / 12 / 24 mois), déclenché par le kilométrage ou la date, avec plan de révision personnalisable par véhicule.
-- **💶 Budget** — dépenses des 12 derniers mois et coût total par véhicule.
-- **💾 Sauvegarde** — export / import JSON, données stockées localement dans le navigateur (aucun serveur, aucune donnée envoyée).
+### Parc de véhicules (multi-véhicules par compte)
 
-## Démarrage
+Identité complète : marque, modèle, génération, finition, année, date de
+1<sup>re</sup> immatriculation, motorisation, code moteur, cylindrée, carburant,
+transmission, VIN, photos, date d'acquisition — et relevés kilométriques
+**datés et sourcés**.
+
+### Carnet d'entretien
+
+- Interventions : date, kilométrage, catégorie (vidange, freins, distribution…),
+  description, notes ;
+- pièces (références, marques), consommables, main-d'œuvre, coûts ;
+- réalisé par : propriétaire, garage, professionnel ;
+- factures et photos jointes ;
+- statuts : `effectué`, `prévu`, `annulé`, `non réalisé`.
+
+### Pannes, réparations et dépenses
+
+- Pannes : symptômes, circonstances, codes défaut, hypothèses, tests,
+  pièces remplacées ; statuts `ouverte`, `résolue`, `réapparue`,
+  `résolution non confirmée` ;
+- dépenses : pièces et prestations, totaux par année et catégorie,
+  remboursements, dépenses inconnues ; déduplication stricte facture /
+  intervention liée (aucun double comptage) ;
+- documents privés liés aux interventions, indexés (nom, date, intervention
+  liée) ;
+- rappels : échéances par date ou par kilométrage, entretiens en retard.
+
+### Rapport de vente PDF (serveur, `@react-pdf/renderer`)
+
+Parcours : **Véhicule → Générer un rapport de vente → Vérifier les données →
+Options → Prévisualiser → Générer et télécharger**.
+
+- **A4 portrait**, paginé, table des matières automatique, date de génération,
+  identité du véhicule en pied de page ;
+- **8 sections** : ① couverture et synthèse, ② identification, ③ historique
+  complet, ④ pannes et réparations, ⑤ factures et justificatifs (+ pièces
+  jointes sélectionnées), ⑥ dépenses par catégorie et période, ⑦ travaux à
+  venir (retards + pannes non résolues), ⑧ méthodologie et limites ;
+- **options** : sélection des sections, période de l'historique, inclusion des
+  coûts, factures/photos sélectionnées, **masquage VIN / plaque / données
+  personnelles** ;
+- le contenu reflète **uniquement les données enregistrées** : jamais d'invention,
+  jamais d'inférence de réparation à partir d'un achat de pièce, et l'absence de
+  panne enregistrée est explicitement signalée comme n'étant pas la preuve d'un
+  bon état ;
+- **anomalies signalées, jamais corrigées** : données manquantes, incohérences
+  de kilométrage ou de dates, pièces jointes inaccessibles ;
+- totaux exacts (achats, interventions, remboursements déduits), accents et
+  pagination soignés ;
+- chaque export conserve un **instantané données + options** reproductible.
+
+---
+
+## Technologies
+
+| Domaine | Choix |
+|---|---|
+| Application | **Next.js 14** (App Router) + **TypeScript** + **Tailwind CSS** |
+| Validation | **Zod** (schéma strict du rapport) |
+| PDF | **@react-pdf/renderer** (génération **côté serveur**) |
+| Données | Mode **démo local** (localStorage) + adaptateur **Supabase** (Auth, PostgreSQL, Storage privé) |
+| Tests | **Vitest** (42 tests unitaires et d'intégration) |
+| Licence | **GPL-3.0** |
+
+> Le mode **démo** est actif par défaut : aucune configuration n'est nécessaire,
+> un jeu de données fictif (Renault Clio, Peugeot 3008 — comprenant volontairement
+> des anomalies) est utilisé localement.
+
+---
+
+## Installation
+
+Prérequis : **Node.js ≥ 18** et npm.
 
 ```bash
+git clone https://github.com/iBob78/carmaintenance.git
+cd carmaintenance
 npm install
-npm run dev        # serveur de développement → http://localhost:5173
+npm run dev        # http://localhost:3000
 ```
 
-Production :
+Autres commandes :
 
 ```bash
-npm run build      # build de production dans dist/
-npm run preview    # prévisualisation du build
+npm run build      # build de production
+npm start          # serveur de production
+npm test           # 42 tests Vitest
+npm run typecheck  # vérification TypeScript
 ```
 
-Test de rendu (smoke-test jsdom) :
+### Variables d'environnement (mode Supabase)
+
+À renseigner dans `.env.local` (copier `.env.example`) — **uniquement** quand le
+mode Supabase sera activé :
+
+| Variable | Rôle |
+|---|---|
+| `SUPABASE_URL` | URL du projet Supabase |
+| `SUPABASE_ANON_KEY` | Clé publique (RLS) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clé serveur (génération PDF uniquement, jamais exposée au navigateur) |
+
+### Base de données Supabase
+
+La migration SQL complète est fournie dans
+[`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) :
+12 tables (`profiles`, `vehicles`, `odometer_readings`, `maintenance_tasks`,
+`service_records`, `service_record_items`, `faults_and_tests`,
+`parts_and_purchases`, `documents`, `expense_entries`, `reminders`,
+`report_exports`), contraintes de cohérence, **RLS** (chaque ligne liée à un
+véhicule possédé), fonctions `owns_vehicle` et `delete_user_data` (RGPD), et
+**bucket de stockage privé** pour les pièces jointes.
+
+À appliquer via `psql` ou l'éditeur SQL de Supabase :
 
 ```bash
-npm run build && npm run smoke
+psql "$SUPABASE_DATABASE_URL" -f supabase/migrations/0001_init.sql
 ```
 
-## Stack technique
+---
 
-- [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- [Vite](https://vitejs.dev/)
-- [Tailwind CSS v4](https://tailwindcss.com/)
-- [lucide-react](https://lucide.dev/) (icônes)
-- Persistance via `localStorage`
-
-## Structure
+## Endpoint de rapport de vente
 
 ```
-src/
-├── types.ts                  # Modèle de données (véhicules, entretiens, intervalles)
-├── store.tsx                 # État global + persistance localStorage
-├── lib/
-│   ├── maintenance.ts        # Catalogue des entretiens, calcul des échéances, calendrier
-│   ├── storage.ts            # Chargement / sauvegarde / seed / import-export
-│   └── utils.ts              # Dates ISO, formats fr-FR (km, €, dates)
-└── components/               # Pages et composants d'interface
+POST /api/vehicles/{vehicleId}/reports/sale
 ```
 
-## Notes
+- corps JSON : `{ "snapshot": { "schemaVersion": 1, … }, "options": { … } }`
+  (5 Mo max, validé par Zod) ;
+- le serveur **revalide les droits d'accès**, recalcule totaux et anomalies,
+  applique la **confidentialité avant la mise en page**, puis génère et valide
+  le PDF ;
+- réponse : flux PDF (`Content-Disposition: attachment`) avec en-têtes
+  `X-Report-Pages`, `X-Report-Bytes`, `X-Report-Anomalies`, `X-Report-Generated-At`
+  et `Cache-Control: no-store` ;
+- erreur JSON `{ "error": … }` : `400/403/413/422/500` ;
+- aucune archive permanente du PDF : seul un **metadonnées minimal** d'export
+  est conservé (reproductibilité).
 
-- Les seuils par défaut (vidange tous les 15 000 km ou 12 mois, distribution 90 000 km / 6 ans…) sont personnalisables dans **Réglages** selon les préconisations de votre constructeur.
-- AutoCarnet est un outil de suivi personnel : il ne remplace pas le carnet d'entretien officiel ni les préconisations de votre garage.
+---
+
+## Tests
+
+```bash
+npm test
+```
+
+42 tests couvrant notamment : présence/absence des sections sélectionnées,
+pagination d'un historique volumineux (60 interventions), gestion des
+kilométrages inconnus ou incohérents, exactitude des totaux et
+remboursements, masquage des données personnelles (y compris factures),
+signalement des pièces jointes manquantes, validation et reproductibilité du
+PDF.
+
+---
+
+## Feuille de route
+
+- ✅ Carnet d'entretien complet (interventions, pièces, coûts, documents)
+- ✅ Pannes, réparations, dépenses, rappels
+- ✅ Rapport de vente PDF 8 sections + confidentialité + anomalies + instantané
+- ✅ Migration SQL Supabase (RLS, storage privé, suppression RGPD)
+- ⬜ Activation de l'adaptateur Supabase (Auth + données réelles)
+- ⬜ Application mobile associée
 
 ## Licence
 
-[GPL-3.0-or-later](LICENSE)
+[GPL-3.0](LICENSE)
