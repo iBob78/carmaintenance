@@ -14,13 +14,11 @@ import {
   Pencil,
   Plus,
   Receipt,
-  Sparkles,
   Trash2,
   Wrench,
 } from 'lucide-react'
 import { useStore } from '@/lib/data/store'
 import {
-  CARBURANT_LABELS,
   EXPENSE_CATEGORY_LABELS,
   FAULT_STATUS_LABELS,
   SERVICE_CATEGORIES,
@@ -30,7 +28,6 @@ import {
 import { computeDue, duesForVehicle } from '@/lib/domain/due'
 import { formatInterval, reminderForOperation, scheduleForVehicle } from '@/lib/domain/schedule'
 import { computeExpenseTotals } from '@/lib/domain/totals'
-import { detectAnomalies, missingVehicleFields } from '@/lib/domain/anomalies'
 import { formatDate, formatDateShort, formatEuro, formatKm, classNames, todayISO } from '@/lib/domain/format'
 import { timelineForVehicle, todaySplitIndex, type TimelineEntry, type TimelineEtat } from '@/lib/domain/timeline'
 import type { ExpenseEntry, FaultAndTest, ServiceRecord, Vehicle } from '@/lib/domain/types'
@@ -45,6 +42,7 @@ import {
   type ServiceRecordFormValues,
 } from '@/components/forms'
 import { ScanPhotoButton, FactureReview } from '@/components/scan'
+import { VehicleSynthese } from '@/components/VehicleSynthese'
 import { parseFacture, type FactureScan, type ServicePrefill } from '@/lib/ocr/facture'
 
 const TABS = [
@@ -159,77 +157,12 @@ export default function VehicleDetailPage() {
   const dues = duesForVehicle(db, vehicleId)
   const timeline = timelineForVehicle(db, vehicleId)
   const timelineSplit = todaySplitIndex(timeline)
-  const anomalies = detectAnomalies(db, vehicleId)
-  const missing = missingVehicleFields(vehicle)
   const plan = scheduleForVehicle(vehicle)
 
   return (
     <div className="space-y-6">
-      {/* En-tête véhicule */}
-      <Card className="overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-900 to-brand-900 px-6 py-6 text-white sm:px-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-brand-200">
-                Carnet d&apos;entretien
-              </p>
-              <h1 className="mt-1 text-2xl font-bold">
-                {vehicle.marque} {vehicle.modele}
-                {vehicle.finition ? ` — ${vehicle.finition}` : ''}
-              </h1>
-              <p className="mt-1 text-sm text-slate-300">
-                {vehicle.annee}
-                {vehicle.motorisation ? ` · ${vehicle.motorisation}` : ''} · {CARBURANT_LABELS[vehicle.carburant]}
-                {vehicle.immatriculation ? ` · ${vehicle.immatriculation}` : ''} · {formatKm(vehicle.kilometrageActuel)}
-              </p>
-            </div>
-            <Link href={`/vehicules/${vehicleId}/rapport`}>
-              <Button className="bg-white text-slate-900 hover:bg-brand-50">
-                <Sparkles className="h-4 w-4" />
-                Générer un rapport de vente
-              </Button>
-            </Link>
-          </div>
-
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl bg-white/10 px-4 py-3">
-              <p className="text-xs text-brand-100">Interventions</p>
-              <p className="mt-1 text-xl font-bold">{records.length}</p>
-            </div>
-            <div className="rounded-xl bg-white/10 px-4 py-3">
-              <p className="text-xs text-brand-100">Dépenses nettes</p>
-              <p className="mt-1 text-xl font-bold">{formatEuro(totals.net)}</p>
-            </div>
-            <div className="rounded-xl bg-white/10 px-4 py-3">
-              <p className="text-xs text-brand-100">Justificatifs</p>
-              <p className="mt-1 text-xl font-bold">{documents.length}</p>
-            </div>
-            <div className="rounded-xl bg-white/10 px-4 py-3">
-              <p className="text-xs text-brand-100">Défauts non résolus</p>
-              <p className="mt-1 text-xl font-bold">{faults.filter((f) => f.statut !== 'resolu').length}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Alerte anomalies / champs manquants */}
-        {(anomalies.length > 0 || missing.length > 0) && (
-          <div className="border-t border-amber-100 bg-amber-50 px-6 py-4 sm:px-8">
-            <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-              <AlertTriangle className="h-4 w-4" />
-              Points d&apos;attention pour le rapport de vente
-            </p>
-            <ul className="mt-2 space-y-1 text-xs text-amber-800">
-              {missing.map((m) => (
-                <li key={m}>· Champ non renseigné : {m} (le rapport l&apos;indiquera comme absent).</li>
-              ))}
-              {anomalies.slice(0, 3).map((a) => (
-                <li key={a.id}>· {a.message}</li>
-              ))}
-              {anomalies.length > 3 && <li>· … et {anomalies.length - 3} autre(s) anomalie(s).</li>}
-            </ul>
-          </div>
-        )}
-      </Card>
+      {/* Synthèse façon rapport (identification, km, historique, dépenses…) */}
+      <VehicleSynthese vehicle={vehicle} db={db} />
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
