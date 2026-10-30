@@ -53,8 +53,8 @@ describe('computeDue', () => {
 
   it('estime le rythme de conduite (km/mois) depuis l\'historique', () => {
     const rate = avgKmPerMonth(clio, db.serviceRecords)
-    expect(rate).toBeGreaterThan(100)
-    expect(rate).toBeLessThan(5000)
+    expect(rate!).toBeGreaterThan(100)
+    expect(rate!).toBeLessThan(5000)
   })
 })
 
@@ -70,5 +70,32 @@ describe('transparence des données', () => {
     )
     // Sans historique, on planifie le cycle — on n'affirme pas que la distribution a été faite
     expect(due!.lastRecord).toBeUndefined()
+  })
+})
+
+describe('projection selon le kilométrage annuel', () => {
+  const vehicle: Vehicle = {
+    ...buildSeedDatabase().vehicles[0], kilometrageActuel: 58000,
+    dateKilometrageActuel: '2026-01-01', kilometrageAnnuel: 10000,
+  }
+  const task = { categorie: 'distribution' as const, libelle: 'Distribution', intervalleKm: 60000, actif: true }
+
+  it('estime le franchissement des 60 000 km en mars et conserve le kilométrage réel', () => {
+    const due = computeDue(vehicle, task, [])!
+    expect(due.dueKm).toBe(60000)
+    expect(due.projectedDate).toBe('2026-03-15')
+    expect(vehicle.kilometrageActuel).toBe(58000)
+  })
+
+  it('ne produit pas de date sans rythme ou date du relevé', () => {
+    expect(computeDue({ ...vehicle, kilometrageAnnuel: undefined }, task, [])!.projectedDate).toBeUndefined()
+    expect(computeDue({ ...vehicle, dateKilometrageActuel: undefined }, task, [])!.projectedDate).toBeUndefined()
+    expect(computeDue({ ...vehicle, kilometrageAnnuel: 0 }, task, [])!.projectedDate).toBeUndefined()
+  })
+
+  it('préserve la date calendaire indépendamment de la projection kilométrique', () => {
+    const due = computeDue(vehicle, { ...task, intervalleMois: 12 }, [])!
+    expect(due.dueDate).toBeDefined()
+    expect(due.projectedDate).toBe('2026-03-15')
   })
 })

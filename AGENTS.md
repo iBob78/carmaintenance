@@ -6,15 +6,15 @@
 > code sans rien casser. En cas de divergence entre ce document et le code, **le code
 > fait foi** : relisez les sources citées ici.
 >
-> Dernière mise à jour : **2026-10-22**.
+> Dernière mise à jour : **2026-10-30**.
 
 ---
 
 ## 1. Mission et principes non négociables
 
-**AutoCarnet** : carnet d'entretien automobile open source (GPL-3.0), **100 % local par
-défaut** (aucune donnée ne quitte l'appareil en mode démo), avec scan OCR de documents
-et génération d'un **rapport de vente PDF**.
+**AutoCarnet** : carnet d'entretien automobile open source (GPL-3.0), avec stockage
+local par défaut, scan OCR dans le navigateur et génération serveur d'un **rapport de
+vente PDF**. Pour générer ce rapport, un instantané est transmis au serveur applicatif.
 
 Deux principes structurent tout le code — ils ne se négocient pas lors d'une reprise :
 
@@ -66,7 +66,7 @@ Prérequis : **Node.js ≥ 18**, npm.
 npm install
 npm run dev          # serveur de dev http://localhost:3000 (bind 0.0.0.0)
 npm run dev:clean    # idem APRÈS purge de .next  ← utiliser dès qu'un 500 / module manquant apparaît
-npm test             # vitest run — 120 tests (voir §9)
+npm test             # vitest run — 144 tests (voir §9)
 npm run test:watch   # vitest en veille
 npm run typecheck    # tsc --noEmit
 npm run build        # build de production
@@ -111,6 +111,7 @@ src/
 │   ├── layout.tsx / globals.css  # AppShell + styles
 │   ├── vehicules/                # liste, fiche [id] (onglets : infos / échéances / …), rapport [id]
 │   ├── documents/                # justificatifs indexés
+│   ├── carburant/                # pleins, prix et statistiques mensuelles
 │   ├── conseils/                 # page « Jalons d'entretien » (contenu sourcé)
 │   ├── rapport-guide/            # guide du rapport de vente
 │   ├── reglages/                 # réglages + mode
@@ -123,6 +124,7 @@ src/
 └── lib/
     ├── domain/                   # logique pure (sans React, sans I/O) — testée en priorité
     │   ├── types.ts              # TOUT le modèle de données (§5)
+    │   ├── fuel.ts               # statistiques carburant et consommation fiable
     │   ├── format.ts             # formats FR : dates JJ/MM/AAAA, km, euros, uid()
     │   ├── catalog.ts            # libellés (catégories, carburants, statuts…), defaultInterval
     │   ├── due.ts                # échéances : computeDue, duesForVehicle, nextDues, TaskLike
@@ -152,7 +154,7 @@ supabase/migrations/0001_init.sql # schéma SQL complet (12 tables, RLS, storage
 .env.example                      # variables Supabase (copier → .env.local si activation)
 ```
 
-**Routes publiques** : `/`, `/vehicules`, `/vehicules/[id]`, `/vehicules/[id]/rapport`,
+**Routes publiques** : `/`, `/carburant`, `/vehicules`, `/vehicules/[id]`, `/vehicules/[id]/rapport`,
 `/documents`, `/conseils`, `/rapport-guide`, `/reglages` — plus
 `POST /api/vehicles/[id]/reports/sale` (corps `{ snapshot, options }`, 5 Mo max,
 réponse PDF avec `X-Report-Pages`, `X-Report-Bytes`, `X-Report-Anomalies`).
@@ -164,6 +166,7 @@ réponse PDF avec `X-Report-Pages`, `X-Report-Bytes`, `X-Report-Anomalies`).
 Tout est dans `src/lib/domain/types.ts` (source de vérité). `AppDatabase` regroupe des
 collections :
 
+- **`FuelEntry`** — ravitaillement local : litres, montant, compteur, plein complet et suivi continu ; collection facultative pour compatibilité avec les sauvegardes existantes.
 - **`Profile`** — profil utilisateur.
 - **`Vehicle`** — identité complète : marque, modèle, génération, finition, année,
   1re immatriculation, motorisation, **code moteur**, cylindrée, carburant, transmission,
@@ -199,7 +202,7 @@ privé pour les pièces jointes. Commande : `psql "$SUPABASE_DATABASE_URL" -f su
 
 - **Mode démo (défaut)** : tout est dans le `localStorage` via `src/lib/data/demo/`,
   jeu fictif avec anomalies volontaires. **Aucune configuration nécessaire.**
-- **Mode Supabase (étape 6, non activé)** : l'adaptateur existe mais l'auth et la
+- **Mode Supabase (étape 6, non activé)** : une interface de dépôt et une migration existent, mais l'adaptateur, l'auth et la
   persistance réelle restent à câbler (`authorize.ts` contient le TODO marqué).
 
 Variables — **celles-ci uniquement**, voir `.env.example` (jamais inventer d'autres noms) :
@@ -229,13 +232,21 @@ Variables — **celles-ci uniquement**, voir `.env.example` (jamais inventer d'a
 - Chaque champ proposé porte `confiance` (`haute` | `moyenne` | `faible`) et l'UI laisse
   **toujours** valider/corriger avant import.
 
+### Carburant (`src/lib/domain/fuel.ts`)
+
+- Consommation uniquement entre pleins complets avec tous les ravitaillements intermédiaires confirmés et compteurs/dates strictement croissants ; intervalle attribué au mois du plein final.
+- Prix mensuel pondéré par les litres saisis, pas prix de marché. Les pleins ne créent ni dépense, ni relevé kilométrique, ni ligne du rapport PDF.
+- Modifier, insérer ou supprimer un plein invalide la continuité du suivant, à reconfirmer. Données locales uniquement, Supabase non câblé.
+
 ### Échéances (`src/lib/domain/due.ts`)
 
 - `computeDue(vehicle, task, records)` combine **km** (moyenne mensuelle estimée sur les
   relevés) et **date** : `TaskLike = { categorie, libelle, intervalleKm, intervalleMois, actif }`.
 - `duesForVehicle(db, vehicleId)` agrège `maintenanceTasks` + `reminders`.
-- Une échéance se calcule **uniquement** à partir de données enregistrées ; sans relevé
-  suffisant → pas d'estimation sortie du chapeau.
+- La date de franchissement du seuil kilométrique est estimée depuis `dateKilometrageActuel`
+  et le `kilometrageAnnuel` déclaré ; à défaut de rythme déclaré, un rythme peut être
+  calculé depuis les interventions effectuées. Sans rythme ou relevé daté, pas de projection.
+  Elle reste indicative et ne remplace ni le kilométrage réel ni la date calendaire.
 
 ### Planning par modèle (`src/lib/domain/schedule.ts` + `src/lib/data/maintenance-schedules.ts`)
 
@@ -297,7 +308,7 @@ l'intégrité (HTTPS, dates, mentions carnet).
 
 ## 9. Tests
 
-`npm test` — **120 tests, 10 fichiers** (tout doit rester vert) :
+`npm test` — **144 tests, 13 fichiers** (tout doit rester vert) :
 
 | Fichier | Tests | Couvre |
 |---|---|---|
@@ -310,7 +321,10 @@ l'intégrité (HTTPS, dates, mentions carnet).
 | `tests/totals.test.ts` | 7 | totaux, remboursements, déduplication |
 | `tests/facture.test.ts` | 7 | parseur OCR factures |
 | `tests/pdf.test.ts` | 6 | génération/validation PDF (le plus lent, ~12 s) |
-| `tests/due.test.ts` | 6 | calcul d'échéances |
+| `tests/timeline.test.ts` | 8 | chronologie des événements |
+| `tests/synthese.test.ts` | 8 | synthèse du véhicule |
+| `tests/fuel.test.ts` | 5 | statistiques de carburant et suivi continu |
+| `tests/due.test.ts` | 9 | calcul d'échéances |
 
 Conventions : environnement `node` (pas de DOM) ; ajouter toute feature avec ses tests
 dans le même commit ; les assertions sur dates doivent utiliser les formats FR (et
@@ -361,9 +375,9 @@ attention à l'espace fine insécable U+202F de `toLocaleString('fr-FR')` — vo
 
 ---
 
-## 12. État du projet au 2026-10-22
+## 12. État du projet au 2026-10-30
 
-- Branche de travail : `arena/b302969d-carmaintenance` (PR **#1** ouverte vers `main`).
+- La PR historique **#1** a été fusionnée dans `main`. La branche de travail dépend de la session en cours.
 - Historique récent : `595e23a` refonte Next.js → `0bef5b5` OCR → `cfc34d7`/`0483e25`
   calibrage OCR réel → `2489910` libellés jamais valeurs → `33cc461` dates JJ/MM/AAAA →
   `8155946` VIN (E imprimé prime) → `cb6f183` planning par modèle + rappels →
@@ -371,7 +385,10 @@ attention à l'espace fine insécable U+202F de `toLocaleString('fr-FR')` — vo
 - **Livré** : carnet complet, scan OCR carte grise/facture (local), rapport de vente PDF
   8 sections + confidentialité + instantané, échéances/rappels, **planning d'entretien
   par modèle** (catalogue sourcé), **page Conseils** (jalons + conditions sévères),
-  migration SQL Supabase, 120 tests.
+  migration SQL Supabase, 144 tests.
+- **Évolution** : gestion locale des pleins et statistiques mensuelles de carburant.
+- **Évolution** : estimation facultative du kilométrage annuel et projection indicative
+  des dates de franchissement des seuils depuis un kilométrage daté (mode démo).
 - **Restant (feuille de route)** : activation de l'adaptateur Supabase (auth + persistance
   réelle, TODO dans `authorize.ts`), application mobile, extension du catalogue de plans
   à d'autres modèles au fil des besoins.

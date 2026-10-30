@@ -8,6 +8,7 @@ import {
   Car,
   FileText,
   FolderOpen,
+  Fuel,
   LayoutDashboard,
   Lightbulb,
   Menu,
@@ -23,6 +24,7 @@ import { useStore } from '@/lib/data/store'
 const NAV = [
   { href: '/', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/vehicules', label: 'Mes véhicules', icon: Car },
+  { href: '/carburant', label: 'Carburant', icon: Fuel },
   { href: '/documents', label: 'Documents', icon: FolderOpen },
   { href: '/conseils', label: 'Conseils', icon: Lightbulb },
   { href: '/reglages', label: 'Réglages', icon: Settings },

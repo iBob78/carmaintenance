@@ -128,6 +128,7 @@ export default function DashboardPage() {
                         {due.daysRemaining != null && `reste ${Math.max(0, due.daysRemaining)} j`}
                         {due.dueKm != null && ` · échéance ${formatKm(due.dueKm)}`}
                         {due.dueDate != null && ` · ${formatDateShort(due.dueDate)}`}
+                        {due.projectedDate && ` · kilométrage estimé atteint vers le ${formatDateShort(due.projectedDate)}`}
                       </p>
                       {(due.kmRemaining != null || due.daysRemaining != null) && (
                         <div className="mt-2 max-w-md">

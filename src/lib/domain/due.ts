@@ -12,7 +12,7 @@ import type {
   ServiceRecord,
   Vehicle,
 } from './types'
-import { addMonthsISO, daysBetween, monthsBetween, todayISO } from './format'
+import { addMonthsISO, daysBetween, monthsBetween, parseISO, toISODate, todayISO } from './format'
 
 export function lastRecordFor(
   records: ServiceRecord[],
@@ -28,20 +28,34 @@ export function lastRecordFor(
     .sort((a, b) => (a.date === b.date ? b.kilometrage - a.kilometrage : a.date < b.date ? 1 : -1))[0]
 }
 
-/** Rythme moyen mensuel estimé (km/mois) — repli : 1 000 km/mois */
-export function avgKmPerMonth(vehicle: Vehicle, records: ServiceRecord[]): number {
+/** Rythme déclaré, ou calculé sur des interventions réelles si disponibles. */
+export function avgKmPerMonth(vehicle: Vehicle, records: ServiceRecord[]): number | null {
+  if (vehicle.kilometrageAnnuel != null && Number.isFinite(vehicle.kilometrageAnnuel) && vehicle.kilometrageAnnuel > 0) {
+    return vehicle.kilometrageAnnuel / 12
+  }
   const list = records
-    .filter((r) => r.vehicleId === vehicle.id)
+    .filter((r) => r.vehicleId === vehicle.id && r.statut === 'effectue')
     .slice()
-    .sort((a, b) => (a.date === b.date ? a.kilometrage - b.kilometrage : a.date < b.date ? -1 : 1))
+    .sort((a, b) => a.date.localeCompare(b.date))
   if (list.length >= 2) {
     const first = list[0]
     const last = list[list.length - 1]
     const months = monthsBetween(first.date, last.date)
     const km = last.kilometrage - first.kilometrage
-    if (months >= 1 && km > 0) return Math.max(50, Math.round(km / months))
+    if (months >= 1 && km > 0) return km / months
   }
-  return 1000
+  return null
+}
+
+/** Projection depuis la date du relevé, jamais depuis un kilométrage fictif. */
+function projectedKmDate(vehicle: Vehicle, dueKm: number | undefined, records: ServiceRecord[]): string | undefined {
+  const rate = avgKmPerMonth(vehicle, records)
+  const anchor = vehicle.dateKilometrageActuel
+  if (dueKm == null || !anchor || !rate) return undefined
+  const days = Math.max(0, Math.round((dueKm - vehicle.kilometrageActuel) / (rate * 12) * 365.25))
+  const date = parseISO(anchor)
+  date.setDate(date.getDate() + days)
+  return toISODate(date)
 }
 
 function urgencyOf(kmRemaining: number | null, daysRemaining: number | null): ServiceDue['urgency'] {
@@ -99,15 +113,7 @@ export function computeDue(vehicle: Vehicle, task: TaskLike, records: ServiceRec
   const kmRemaining = dueKm !== undefined ? dueKm - vehicle.kilometrageActuel : null
   const daysRemaining = dueDate !== undefined ? daysBetween(today, dueDate) : null
 
-  let projectedDate: string | undefined
-  if (dueKm !== undefined) {
-    if ((kmRemaining ?? 0) > 0) {
-      const rate = avgKmPerMonth(vehicle, records)
-      projectedDate = addMonthsISO(today, Math.round((kmRemaining as number) / rate))
-    } else {
-      projectedDate = today
-    }
-  }
+  const projectedDate = projectedKmDate(vehicle, dueKm, records)
 
   return {
     categorie: task.categorie,
@@ -123,7 +129,7 @@ export function computeDue(vehicle: Vehicle, task: TaskLike, records: ServiceRec
 }
 
 /** Échéances issues des rappels explicites de l'utilisateur */
-export function dueFromReminder(vehicle: Vehicle, reminder: Reminder): ServiceDue {
+export function dueFromReminder(vehicle: Vehicle, reminder: Reminder, records: ServiceRecord[] = []): ServiceDue {
   const today = todayISO()
   const kmRemaining =
     reminder.seuilKm !== undefined ? reminder.seuilKm - vehicle.kilometrageActuel : null
@@ -136,6 +142,7 @@ export function dueFromReminder(vehicle: Vehicle, reminder: Reminder): ServiceDu
     kmRemaining: kmRemaining ?? undefined,
     daysRemaining: daysRemaining ?? undefined,
     urgency: urgencyOf(kmRemaining, daysRemaining),
+    projectedDate: projectedKmDate(vehicle, reminder.seuilKm, records),
     fromReminder: reminder,
   }
 }
@@ -151,7 +158,7 @@ export function duesForVehicle(db: AppDatabase, vehicleId: string): ServiceDue[]
   for (const reminder of db.reminders.filter(
     (r) => r.vehicleId === vehicleId && (r.statut === 'a_faire' || r.statut === 'en_retard'),
   )) {
-    dues.push(dueFromReminder(vehicle, reminder))
+    dues.push(dueFromReminder(vehicle, reminder, db.serviceRecords))
   }
   return dues.sort((a, b) => {
     const order = { retard: 0, urgent: 1, bientot: 2, ok: 3 }

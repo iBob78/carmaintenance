@@ -108,6 +108,10 @@ export interface Vehicle {
   immatriculation?: string
   dateAcquisition?: string
   kilometrageActuel: number
+  /** Date du kilométrage enregistré, distincte de sa projection. */
+  dateKilometrageActuel?: string
+  /** Estimation déclarée par l’utilisateur, en km par an. */
+  kilometrageAnnuel?: number
   couleur?: string
   notes?: string
   createdAt: string
@@ -306,10 +310,25 @@ export interface ServiceDue {
   fromReminder?: Reminder
 }
 
+/** Plein saisi localement, sans création automatique de dépense. */
+export interface FuelEntry {
+  id: string
+  vehicleId: string
+  date: string
+  kilometrage: number
+  litres: number
+  montant: number
+  carburant: string
+  pleinComplet: boolean
+  suiviContinu: boolean
+  createdAt: string
+}
+
 /** Registre complet de l'application (miroir du modèle SQL) */
 export interface AppDatabase {
   profile: Profile
   vehicles: Vehicle[]
+  fuelEntries?: FuelEntry[]
   odometerReadings: OdometerReading[]
   maintenanceTasks: MaintenanceTask[]
   serviceRecords: ServiceRecord[]

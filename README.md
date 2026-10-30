@@ -41,7 +41,17 @@ transmission, VIN, photos, date d'acquisition — et relevés kilométriques
   intervention liée (aucun double comptage) ;
 - documents privés liés aux interventions, indexés (nom, date, intervention
   liée) ;
-- rappels : échéances par date ou par kilométrage, entretiens en retard.
+- rappels : échéances par date ou par kilométrage, entretiens en retard ;
+- kilométrage annuel facultatif : estimation de la date de franchissement des
+  seuils kilométriques depuis le dernier kilométrage daté, à titre indicatif.
+  Pour un ancien véhicule sans date de référence, ajouter un relevé kilométrique.
+
+### Suivi des pleins de carburant
+
+- page **`/carburant`** : ajout, modification et suppression de ravitaillements par véhicule (date, compteur, litres, montant, carburant et plein complet) ;
+- dépenses et volumes mensuels, prix moyen pondéré au litre et courbe historique des prix saisis ;
+- consommation en L/100 km uniquement entre deux pleins complets, lorsque tous les ravitaillements intermédiaires ont été enregistrés et confirmés. L'intervalle est attribué au mois du plein final, pas réparti sur les mois traversés ;
+- les pleins sont stockés localement, sans mettre à jour automatiquement le compteur du véhicule ni créer de dépense ou d'entrée dans le rapport PDF. Modifier l'historique peut nécessiter de reconfirmer le suivi du ravitaillement suivant.
 
 ### Entretien préventif : planning par modèle
 
@@ -117,8 +127,8 @@ Options → Prévisualiser → Générer et télécharger**.
 | Validation | **Zod** (schéma strict du rapport) |
 | PDF | **@react-pdf/renderer** (génération **côté serveur**) |
 | OCR | **tesseract.js** (lecture de carte grise / factures **dans le navigateur**, sans serveur ni clé API) |
-| Données | Mode **démo local** (localStorage) + adaptateur **Supabase** (Auth, PostgreSQL, Storage privé) |
-| Tests | **Vitest** (120 tests unitaires et d'intégration) |
+| Données | Mode **démo local** (localStorage) ; intégration **Supabase** (Auth, PostgreSQL, Storage privé) à développer |
+| Tests | **Vitest** (144 tests unitaires et d'intégration) |
 | Licence | **GPL-3.0** |
 
 > Le mode **démo** est actif par défaut : aucune configuration n'est nécessaire,
@@ -143,7 +153,7 @@ Autres commandes :
 ```bash
 npm run build      # build de production
 npm start          # serveur de production
-npm test           # 120 tests Vitest
+npm test           # 144 tests Vitest
 npm run typecheck  # vérification TypeScript
 npm run dev:clean  # dev avec purge du cache (si « Cannot find module './xxx.js' »)
 ```
@@ -208,7 +218,7 @@ POST /api/vehicles/{vehicleId}/reports/sale
 npm test
 ```
 
-120 tests couvrant notamment : présence/absence des sections sélectionnées,
+144 tests couvrant notamment : présence/absence des sections sélectionnées,
 pagination d'un historique volumineux (60 interventions), gestion des
 kilométrages inconnus ou incohérents, exactitude des totaux et
 remboursements, masquage des données personnelles (y compris factures),
@@ -227,6 +237,7 @@ Des suites dédiées couvrent aussi le **planning d'entretien par modèle**
 
 - ✅ Carnet d'entretien complet (interventions, pièces, coûts, documents)
 - ✅ Pannes, réparations, dépenses, rappels
+- ✅ Suivi local des pleins et statistiques mensuelles de carburant
 - ✅ Scan OCR local : carte grise → fiche véhicule, facture → intervention
 - ✅ Rapport de vente PDF 8 sections + confidentialité + anomalies + instantané
 - ✅ Migration SQL Supabase (RLS, storage privé, suppression RGPD)

@@ -529,6 +529,7 @@ export default function VehicleDetailPage() {
                       {d.dueDate != null && formatDateShort(d.dueDate)}
                       {d.kmRemaining != null && ` · reste ${formatKm(Math.max(0, d.kmRemaining))}`}
                       {d.daysRemaining != null && ` · reste ${Math.max(0, d.daysRemaining)} j`}
+                      {d.projectedDate && ` · kilométrage estimé atteint vers le ${formatDateShort(d.projectedDate)}`}
                     </p>
                     {d.kmRemaining != null && d.dueKm != null && (
                       <div className="mt-2 max-w-md">
@@ -620,6 +621,7 @@ export default function VehicleDetailPage() {
                                 {due.dueKm != null ? formatKm(due.dueKm) : ''}
                                 {due.dueKm != null && due.dueDate != null ? ' ou ' : ''}
                                 {due.dueDate != null ? formatDateShort(due.dueDate) : ''}
+                                {due.projectedDate && ` · kilométrage estimé atteint vers le ${formatDateShort(due.projectedDate)}`}
                               </>
                             )}
                           </p>
