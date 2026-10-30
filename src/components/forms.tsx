@@ -149,6 +149,10 @@ export function VehicleForm({
         <Field label="Kilométrage actuel (km)" required>
           <Input type="number" min={0} value={v.kilometrageActuel} onChange={(e) => set('kilometrageActuel', Math.max(0, Number(e.target.value)))} required />
         </Field>
+        <Field label="Kilométrage estimé par an (km/an)">
+          <Input type="number" min={1} step={1} value={v.kilometrageAnnuel ?? ''} onChange={(e) => set('kilometrageAnnuel', e.target.value ? Number(e.target.value) : undefined)} placeholder="Ex. 10000" />
+          <p className="mt-1 text-xs text-slate-500">Facultatif : utilisé pour estimer la date des entretiens selon votre usage. Pour un véhicule existant sans relevé daté, ajoutez un relevé kilométrique.</p>
+        </Field>
         <Field label="Couleur">
           <Input value={v.couleur ?? ''} onChange={(e) => set('couleur', e.target.value)} />
         </Field>

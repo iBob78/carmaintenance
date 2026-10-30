@@ -7,6 +7,7 @@ import type {
   DocumentEntry,
   ExpenseEntry,
   FaultAndTest,
+  FuelEntry,
   OdometerReading,
   PartPurchase,
   Reminder,
@@ -18,12 +19,15 @@ import type {
 import { demoRepository } from './demo/repository'
 import { buildSeedDatabase } from './demo/seed'
 import { SERVICE_CATEGORY_KEYS, defaultInterval } from '../domain/catalog'
-import { uid } from '../domain/format'
+import { todayISO, uid } from '../domain/format'
 
 interface StoreValue {
   ready: boolean
   db: AppDatabase
   mode: 'demo' | 'supabase'
+  addFuelEntry: (entry: Omit<FuelEntry, 'id' | 'createdAt'>) => void
+  updateFuelEntry: (entry: FuelEntry) => void
+  removeFuelEntry: (id: string) => void
   addVehicle: (v: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>) => void
   updateVehicle: (v: Vehicle) => void
   removeVehicle: (id: string) => void
@@ -109,10 +113,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       db: safe,
       mode: demoRepository.mode,
 
+      addFuelEntry: (entry) => mutate((d) => ({
+        ...d,
+        fuelEntries: [...invalidateFollowing(d.fuelEntries ?? [], entry.vehicleId, entry.date), { ...entry, id: uid(), createdAt: new Date().toISOString() }],
+      })),
+      updateFuelEntry: (entry) => mutate((d) => {
+        const old = (d.fuelEntries ?? []).find((x) => x.id === entry.id)
+        if (!old) return d
+        let entries = invalidateFollowing(d.fuelEntries ?? [], old.vehicleId, old.date, entry.id)
+        entries = invalidateFollowing(entries, entry.vehicleId, entry.date, entry.id)
+        return { ...d, fuelEntries: entries.map((x) => x.id === entry.id ? entry : x) }
+      }),
+      removeFuelEntry: (id) => mutate((d) => {
+        const old = (d.fuelEntries ?? []).find((x) => x.id === id)
+        if (!old) return d
+        return { ...d, fuelEntries: invalidateFollowing(d.fuelEntries ?? [], old.vehicleId, old.date, id).filter((x) => x.id !== id) }
+      }),
+
       addVehicle: (input) =>
         mutate((d) => {
           const now = new Date().toISOString()
-          const vehicle: Vehicle = { ...input, id: uid(), createdAt: now, updatedAt: now }
+          const vehicle: Vehicle = { ...input, dateKilometrageActuel: todayISO(), id: uid(), createdAt: now, updatedAt: now }
           return {
             ...d,
             vehicles: [...d.vehicles, vehicle],
@@ -122,12 +143,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateVehicle: (v) =>
         mutate((d) => ({
           ...d,
-          vehicles: d.vehicles.map((x) => (x.id === v.id ? { ...v, updatedAt: new Date().toISOString() } : x)),
+          vehicles: d.vehicles.map((x) => (x.id === v.id ? { ...v, dateKilometrageActuel: x.kilometrageActuel !== v.kilometrageActuel ? todayISO() : x.dateKilometrageActuel, updatedAt: new Date().toISOString() } : x)),
         })),
       removeVehicle: (id) =>
         mutate((d) => ({
           ...d,
           vehicles: d.vehicles.filter((v) => v.id !== id),
+          fuelEntries: (d.fuelEntries ?? []).filter((e) => e.vehicleId !== id),
           odometerReadings: d.odometerReadings.filter((r) => r.vehicleId !== id),
           maintenanceTasks: d.maintenanceTasks.filter((t) => t.vehicleId !== id),
           serviceRecords: d.serviceRecords.filter((r) => r.vehicleId !== id),
@@ -143,8 +165,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ...d,
           odometerReadings: [...d.odometerReadings, { ...r, id: uid(), createdAt: new Date().toISOString() }],
           vehicles: d.vehicles.map((v) =>
-            v.id === r.vehicleId && r.valeurKm > v.kilometrageActuel
-              ? { ...v, kilometrageActuel: r.valeurKm }
+            v.id === r.vehicleId && (r.valeurKm > v.kilometrageActuel || (r.valeurKm === v.kilometrageActuel && (!v.dateKilometrageActuel || r.date > v.dateKilometrageActuel)))
+              ? { ...v, kilometrageActuel: r.valeurKm, dateKilometrageActuel: r.date }
               : v,
           ),
         })),
@@ -162,7 +184,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             ],
             vehicles: d.vehicles.map((v) =>
               v.id === r.vehicleId && r.kilometrage > v.kilometrageActuel
-                ? { ...v, kilometrageActuel: r.kilometrage }
+                ? { ...v, kilometrageActuel: r.kilometrage, dateKilometrageActuel: r.date }
                 : v,
             ),
           }
@@ -243,6 +265,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [db, mutate])
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+}
+
+// Une insertion, modification ou suppression rend incertain le suivi qui la suit.
+function invalidateFollowing(entries: FuelEntry[], vehicleId: string, date: string, excludeId?: string): FuelEntry[] {
+  const next = entries.filter((e) => e.vehicleId === vehicleId && e.id !== excludeId && e.date >= date)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))[0]
+  return entries.map((e) => e.id === next?.id ? { ...e, suiviContinu: false } : e)
 }
 
 function empty(): AppDatabase {
