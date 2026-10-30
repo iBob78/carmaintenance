@@ -12,6 +12,7 @@ import type { FuelEntry } from '@/lib/domain/types'
 type FuelValues = Omit<FuelEntry, 'id' | 'createdAt'>
 const number = (n: number, digits = 2) => n.toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const euro = (n: number) => `${number(n)} €`
+const FUEL_OPTIONS = ['Gasoil', 'Gasoil premium', 'SP98', 'SP95-E10', 'SP95', 'E85'] as const
 
 function FuelForm({ vehicleId, initial, onSave, onCancel }: { vehicleId: string; initial?: FuelEntry; onSave: (value: FuelValues) => void; onCancel: () => void }) {
   const [date, setDate] = useState(initial?.date ?? todayISO())
@@ -33,7 +34,15 @@ function FuelForm({ vehicleId, initial, onSave, onCancel }: { vehicleId: string;
         <Field label="Kilométrage au compteur" required><Input type="number" required min="0" step="1" value={km} onChange={(e) => { setKm(e.target.value); setContinuous(false) }} /></Field>
         <Field label="Volume (litres)" required><Input type="number" required min="0.001" step="0.001" value={litres} onChange={(e) => setLitres(e.target.value)} /></Field>
         <Field label="Montant payé (€)" required><Input type="number" required min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
-        <Field label="Carburant" required hint="Ex. SP95-E10, gazole, GPL"><Input required maxLength={60} value={fuel} onChange={(e) => setFuel(e.target.value)} placeholder="SP95-E10" /></Field>
+        <Field label="Carburant" required>
+          <Select required value={fuel} onChange={(e) => setFuel(e.target.value)}>
+            <option value="">Sélectionnez un carburant</option>
+            {initial?.carburant && !FUEL_OPTIONS.some((option) => option === initial.carburant) && (
+              <option value={initial.carburant}>{initial.carburant} (valeur enregistrée)</option>
+            )}
+            {FUEL_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+          </Select>
+        </Field>
         <div className="self-end pb-2 text-sm text-slate-600">{Number(litres) > 0 && Number(amount) > 0 ? `Prix calculé : ${number(Number(amount) / Number(litres), 3)} €/L` : 'Prix au litre calculé depuis le montant et le volume.'}</div>
       </div>
       <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} className="mt-1" /> Réservoir rempli complètement</label>
@@ -79,7 +88,8 @@ export default function FuelPage() {
             </svg>
           </Card>
           <Card className="overflow-x-auto"><div className="p-5 pb-2"><h2 className="text-lg font-semibold">Statistiques mensuelles</h2><p className="mt-1 text-xs text-slate-500">La consommation est calculée entre pleins complets avec suivi continu, puis attribuée au mois du plein final. Les valeurs ne couvrent pas nécessairement tout le mois.</p></div>
-            <table className="w-full min-w-[650px] text-left text-sm"><thead className="text-xs text-slate-500"><tr>{['Mois', 'Pleins', 'Litres achetés', 'Montant', 'Prix moyen', 'Consommation mesurée'].map((h) => <th key={h} className="px-5 py-3">{h}</th>)}</tr></thead><tbody>{[...stats].reverse().map((m) => <tr className="border-t border-slate-100" key={m.month}><td className="px-5 py-3">{formatMonthYear(`${m.month}-01`)}</td><td className="px-5 py-3">{m.count}</td><td className="px-5 py-3">{number(m.litres)} L</td><td className="px-5 py-3">{euro(m.amount)}</td><td className="px-5 py-3">{number(m.pricePerLitre, 3)} €/L</td><td className="px-5 py-3">{m.consumption == null ? 'Données insuffisantes' : `${number(m.consumption)} L/100 km (${formatKm(m.distance)})`}</td></tr>)}</tbody></table>
+            <div className="space-y-3 p-4 sm:hidden">{[...stats].reverse().map((m) => <div key={m.month} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="font-semibold text-slate-900">{formatMonthYear(`${m.month}-01`)}</p><dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm"><div><dt className="text-xs text-slate-500">Pleins</dt><dd>{m.count}</dd></div><div><dt className="text-xs text-slate-500">Volume acheté</dt><dd>{number(m.litres)} L</dd></div><div><dt className="text-xs text-slate-500">Montant</dt><dd>{euro(m.amount)}</dd></div><div><dt className="text-xs text-slate-500">Prix moyen</dt><dd>{number(m.pricePerLitre, 3)} €/L</dd></div><div className="col-span-2"><dt className="text-xs text-slate-500">Consommation mesurée</dt><dd>{m.consumption == null ? 'Données insuffisantes' : `${number(m.consumption)} L/100 km (${formatKm(m.distance)})`}</dd></div></dl></div>)}</div>
+            <table className="hidden w-full min-w-[650px] text-left text-sm sm:table"><thead className="text-xs text-slate-500"><tr>{['Mois', 'Pleins', 'Litres achetés', 'Montant', 'Prix moyen', 'Consommation mesurée'].map((h) => <th key={h} className="px-5 py-3">{h}</th>)}</tr></thead><tbody>{[...stats].reverse().map((m) => <tr className="border-t border-slate-100" key={m.month}><td className="px-5 py-3">{formatMonthYear(`${m.month}-01`)}</td><td className="px-5 py-3">{m.count}</td><td className="px-5 py-3">{number(m.litres)} L</td><td className="px-5 py-3">{euro(m.amount)}</td><td className="px-5 py-3">{number(m.pricePerLitre, 3)} €/L</td><td className="px-5 py-3">{m.consumption == null ? 'Données insuffisantes' : `${number(m.consumption)} L/100 km (${formatKm(m.distance)})`}</td></tr>)}</tbody></table>
           </Card>
           <Card className="overflow-hidden"><h2 className="p-5 text-lg font-semibold">Historique des ravitaillements</h2><ul className="divide-y divide-slate-100">{[...entries].sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).map((entry) => <li key={entry.id} className="flex flex-wrap items-center gap-3 px-5 py-4"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{formatDateShort(entry.date)} · {entry.carburant} · {formatKm(entry.kilometrage)}</p><p className="mt-1 text-xs text-slate-500">{number(entry.litres, 3)} L · {euro(entry.montant)} · {number(entry.montant / entry.litres, 3)} €/L</p><div className="mt-2 flex flex-wrap gap-2"><Badge tone={entry.pleinComplet ? 'green' : 'slate'}>{entry.pleinComplet ? 'Plein complet' : 'Partiel'}</Badge><Badge tone={entry.suiviContinu ? 'brand' : 'amber'}>{entry.suiviContinu ? 'Suivi continu déclaré' : 'Suivi non confirmé'}</Badge></div></div><Button variant="ghost" aria-label="Modifier le plein" onClick={() => { setEditing(entry); setOpen(true) }}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label="Supprimer le plein" onClick={() => setDeleting(entry)}><Trash2 className="h-4 w-4" /></Button></li>)}</ul></Card>
         </>}

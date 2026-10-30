@@ -66,7 +66,7 @@ Prérequis : **Node.js ≥ 18**, npm.
 npm install
 npm run dev          # serveur de dev http://localhost:3000 (bind 0.0.0.0)
 npm run dev:clean    # idem APRÈS purge de .next  ← utiliser dès qu'un 500 / module manquant apparaît
-npm test             # vitest run — 144 tests (voir §9)
+npm test             # vitest run — 150 tests (voir §9)
 npm run test:watch   # vitest en veille
 npm run typecheck    # tsc --noEmit
 npm run build        # build de production
@@ -118,12 +118,14 @@ src/
 │   └── api/vehicles/[id]/reports/sale/route.ts   # POST → PDF (Zod, droits, privacy)
 ├── components/
 │   ├── AppShell.tsx              # navigation latérale (NAV) + coquille
+│   ├── VehicleOverview.tsx       # résumé visuel en ouverture de la fiche véhicule
 │   ├── ui.tsx                    # Button, Card, SectionTitle, Badge, Field, Tabs, Modal… ('use client')
 │   ├── forms.tsx                 # formulaires métier
 │   └── scan.tsx                  # assistant de scan OCR
 └── lib/
     ├── domain/                   # logique pure (sans React, sans I/O) — testée en priorité
     │   ├── types.ts              # TOUT le modèle de données (§5)
+    │   ├── vehicle-overview.ts   # indicateurs du résumé, calculs traçables
     │   ├── fuel.ts               # statistiques carburant et consommation fiable
     │   ├── format.ts             # formats FR : dates JJ/MM/AAAA, km, euros, uid()
     │   ├── catalog.ts            # libellés (catégories, carburants, statuts…), defaultInterval
@@ -234,6 +236,7 @@ Variables — **celles-ci uniquement**, voir `.env.example` (jamais inventer d'a
 
 ### Carburant (`src/lib/domain/fuel.ts`)
 
+- Le formulaire propose Gasoil, Gasoil premium, SP98, SP95-E10, SP95 et E85 ; une ancienne valeur libre reste disponible lors de la modification.
 - Consommation uniquement entre pleins complets avec tous les ravitaillements intermédiaires confirmés et compteurs/dates strictement croissants ; intervalle attribué au mois du plein final.
 - Prix mensuel pondéré par les litres saisis, pas prix de marché. Les pleins ne créent ni dépense, ni relevé kilométrique, ni ligne du rapport PDF.
 - Modifier, insérer ou supprimer un plein invalide la continuité du suivant, à reconfirmer. Données locales uniquement, Supabase non câblé.
@@ -308,7 +311,7 @@ l'intégrité (HTTPS, dates, mentions carnet).
 
 ## 9. Tests
 
-`npm test` — **144 tests, 13 fichiers** (tout doit rester vert) :
+`npm test` — **150 tests, 15 fichiers** (tout doit rester vert) :
 
 | Fichier | Tests | Couvre |
 |---|---|---|
@@ -323,6 +326,8 @@ l'intégrité (HTTPS, dates, mentions carnet).
 | `tests/pdf.test.ts` | 6 | génération/validation PDF (le plus lent, ~12 s) |
 | `tests/timeline.test.ts` | 8 | chronologie des événements |
 | `tests/synthese.test.ts` | 8 | synthèse du véhicule |
+| `tests/mobile-ui.test.ts` | 2 | rendu de la navigation mobile et des contrôles |
+| `tests/vehicle-overview.test.ts` | 4 | indicateurs du résumé et relevés d’achat |
 | `tests/fuel.test.ts` | 5 | statistiques de carburant et suivi continu |
 | `tests/due.test.ts` | 9 | calcul d'échéances |
 
@@ -385,7 +390,12 @@ attention à l'espace fine insécable U+202F de `toLocaleString('fr-FR')` — vo
 - **Livré** : carnet complet, scan OCR carte grise/facture (local), rapport de vente PDF
   8 sections + confidentialité + instantané, échéances/rappels, **planning d'entretien
   par modèle** (catalogue sourcé), **page Conseils** (jalons + conditions sévères),
-  migration SQL Supabase, 144 tests.
+  migration SQL Supabase, 150 tests.
+- **Évolution** : interface web mobile-first (navigation fixe en bas sur smartphone et
+  tablette, barre latérale sur ordinateur, formulaires et modales tactiles). Les tests de
+  rendu ne remplacent pas une vérification sur de vrais navigateurs mobiles.
+- **Évolution** : la fiche véhicule ouvre sur un résumé visuel ; distance depuis l’achat
+  uniquement si un relevé existe à l’achat et que les relevés suivants sont cohérents.
 - **Évolution** : gestion locale des pleins et statistiques mensuelles de carburant.
 - **Évolution** : estimation facultative du kilométrage annuel et projection indicative
   des dates de franchissement des seuils depuis un kilométrage daté (mode démo).

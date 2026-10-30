@@ -22,6 +22,14 @@ Identité complète : marque, modèle, génération, finition, année, date de
 transmission, VIN, photos, date d'acquisition — et relevés kilométriques
 **datés et sourcés**.
 
+### Résumé du véhicule
+
+La fiche s’ouvre sur un tableau de bord : entretiens effectués, lignes de pièces,
+dépenses nettes, frise chronologique, répartition des dépenses et échéances.
+Le parcours depuis l’achat n’est affiché que si un relevé existe à la date d’achat
+et qu’un relevé ultérieur cohérent est disponible. La synthèse détaillée et les
+autres onglets restent accessibles ; ces données ne constituent pas une expertise.
+
 ### Carnet d'entretien
 
 - Interventions : date, kilométrage, catégorie (vidange, freins, distribution…),
@@ -49,6 +57,7 @@ transmission, VIN, photos, date d'acquisition — et relevés kilométriques
 ### Suivi des pleins de carburant
 
 - page **`/carburant`** : ajout, modification et suppression de ravitaillements par véhicule (date, compteur, litres, montant, carburant et plein complet) ;
+- liste de carburants : Gasoil, Gasoil premium, SP98, SP95-E10, SP95 et E85 ; les anciennes valeurs libres restent conservées lors de la modification ;
 - dépenses et volumes mensuels, prix moyen pondéré au litre et courbe historique des prix saisis ;
 - consommation en L/100 km uniquement entre deux pleins complets, lorsque tous les ravitaillements intermédiaires ont été enregistrés et confirmés. L'intervalle est attribué au mois du plein final, pas réparti sur les mois traversés ;
 - les pleins sont stockés localement, sans mettre à jour automatiquement le compteur du véhicule ni créer de dépense ou d'entrée dans le rapport PDF. Modifier l'historique peut nécessiter de reconfirmer le suivi du ravitaillement suivant.
@@ -119,6 +128,14 @@ Options → Prévisualiser → Générer et télécharger**.
 
 ---
 
+### Interface mobile
+
+L’interface est conçue d’abord pour smartphone : navigation fixe en bas de l’écran,
+zones tactiles agrandies, formulaires et fenêtres adaptés au clavier et à l’écran,
+et statistiques en cartes sur petit écran. Les tablettes et ordinateurs conservent
+une mise en page responsive ; sur grand écran, la navigation latérale reste disponible.
+Il s’agit d’une application web, pas encore d’une application mobile native.
+
 ## Technologies
 
 | Domaine | Choix |
@@ -128,7 +145,7 @@ Options → Prévisualiser → Générer et télécharger**.
 | PDF | **@react-pdf/renderer** (génération **côté serveur**) |
 | OCR | **tesseract.js** (lecture de carte grise / factures **dans le navigateur**, sans serveur ni clé API) |
 | Données | Mode **démo local** (localStorage) ; intégration **Supabase** (Auth, PostgreSQL, Storage privé) à développer |
-| Tests | **Vitest** (144 tests unitaires et d'intégration) |
+| Tests | **Vitest** (150 tests unitaires et d'intégration) |
 | Licence | **GPL-3.0** |
 
 > Le mode **démo** est actif par défaut : aucune configuration n'est nécessaire,
@@ -153,7 +170,7 @@ Autres commandes :
 ```bash
 npm run build      # build de production
 npm start          # serveur de production
-npm test           # 144 tests Vitest
+npm test           # 150 tests Vitest
 npm run typecheck  # vérification TypeScript
 npm run dev:clean  # dev avec purge du cache (si « Cannot find module './xxx.js' »)
 ```
@@ -218,7 +235,7 @@ POST /api/vehicles/{vehicleId}/reports/sale
 npm test
 ```
 
-144 tests couvrant notamment : présence/absence des sections sélectionnées,
+150 tests couvrant notamment : présence/absence des sections sélectionnées,
 pagination d'un historique volumineux (60 interventions), gestion des
 kilométrages inconnus ou incohérents, exactitude des totaux et
 remboursements, masquage des données personnelles (y compris factures),

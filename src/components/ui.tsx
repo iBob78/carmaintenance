@@ -27,7 +27,7 @@ export function Button({
     <button
       type="button"
       className={classNames(
-        'inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition',
+        'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition',
         'focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
         styles[variant],
         className,
@@ -118,7 +118,7 @@ export function Field({
 }
 
 export const inputClass =
-  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 ' +
+  'block min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 sm:text-sm ' +
   'focus:border-brand-500 focus:outline-2 focus:outline-brand-500/20 disabled:bg-slate-50 disabled:text-slate-400'
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
@@ -170,10 +170,11 @@ export function Modal({
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKey)
+    const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
+      document.body.style.overflow = previousOverflow
     }
   }, [open, onClose])
 
@@ -183,7 +184,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/50 p-0 backdrop-blur-sm dark:bg-black/60 sm:items-center sm:p-6">
       <div
         className={classNames(
-          'w-full rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl',
+          'flex max-h-[min(92dvh,100%)] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-lg',
         )}
         role="dialog"
@@ -195,13 +196,13 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
             aria-label="Fermer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="max-h-[75vh] overflow-y-auto px-6 py-5">{children}</div>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pb-5">{children}</div>
       </div>
     </div>
   )
@@ -259,13 +260,15 @@ export function Tabs({
   onChange: (id: string) => void
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
+    <div aria-label="Sections" className="flex max-w-full gap-1 overflow-x-auto overscroll-x-contain rounded-xl border border-slate-200 bg-white p-1">
       {tabs.map((t) => (
         <button
           key={t.id}
+          type="button"
+          aria-pressed={active === t.id}
           onClick={() => onChange(t.id)}
           className={classNames(
-            'whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition',
+            'min-h-11 shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition',
             active === t.id ? 'bg-slate-900 text-white dark:bg-[#334155]' : 'text-slate-600 hover:bg-slate-50',
           )}
         >

@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   Menu,
+  MoreHorizontal,
   Settings,
   Sparkles,
   Wrench,
@@ -45,8 +46,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Barre latérale */}
       <aside
         className={classNames(
-          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-slate-900 text-white transition-transform duration-200 dark:bg-[#020617] lg:static lg:translate-x-0',
-          open ? 'translate-x-0' : '-translate-x-full',
+          'fixed inset-y-0 left-0 z-50 flex w-[min(18rem,85vw)] flex-col overflow-y-auto bg-slate-900 text-white transition-transform duration-200 dark:bg-[#020617] lg:static lg:w-72 lg:translate-x-0',
+          open ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible',
         )}
       >
         <div className="flex items-center gap-3 px-6 py-6">
@@ -66,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav id="main-navigation" aria-label="Navigation principale" className="flex-1 space-y-1 px-3">
           {NAV.map((item) => {
             const active =
               item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
@@ -76,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={classNames(
-                  'flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition',
+                  'flex min-h-12 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition',
                   active ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800 hover:text-white dark:hover:bg-[#1e293b]',
                 )}
               >
@@ -126,9 +127,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               onClick={() => setOpen(true)}
               className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
               aria-label="Ouvrir le menu"
+              aria-expanded={open}
+              aria-controls="main-navigation"
             >
               <Menu className="h-5 w-5" />
             </button>
+            <Link href="/" className="text-base font-bold tracking-tight text-slate-900 lg:hidden">AutoCarnet</Link>
             <div className="ml-auto flex items-center gap-3">
               <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
                 <FileText className="h-4 w-4" />
@@ -141,11 +145,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-8 sm:px-8">
+        <main className="min-w-0 flex-1 px-4 py-5 sm:px-8 sm:py-8">
           <div className="mx-auto max-w-6xl">{children}</div>
         </main>
 
-        <footer className="border-t border-slate-200 px-4 py-6 sm:px-8">
+        <footer className="border-t border-slate-200 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 sm:px-8 lg:pb-6">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
             <p>
               <span className="font-semibold text-slate-500">AutoCarnet</span> — application open
@@ -155,6 +159,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </footer>
       </div>
+      {/* Navigation principale toujours accessible au pouce sur téléphone et tablette. */}
+      <nav aria-label="Navigation mobile" className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+        <div className="mx-auto grid max-w-xl grid-cols-5">
+          {NAV.slice(0, 4).map((item) => {
+            const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+            const label = item.href === '/' ? 'Accueil' : item.href === '/vehicules' ? 'Véhicules' : item.label
+            return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} onClick={() => setOpen(false)} className={classNames('flex min-h-[60px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-0.5 text-[10px] font-medium', active ? 'text-brand-600' : 'text-slate-500')}>
+              <item.icon className="h-5 w-5" aria-hidden="true" /><span className="truncate">{label}</span>
+            </Link>
+          })}
+          <button type="button" onClick={() => setOpen(true)} aria-label="Plus de rubriques" aria-expanded={open} aria-controls="main-navigation" className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium text-slate-500"><MoreHorizontal className="h-5 w-5" aria-hidden="true" /><span>Plus</span></button>
+        </div>
+      </nav>
     </div>
   )
 }

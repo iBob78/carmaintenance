@@ -80,9 +80,9 @@ export default function VehiclesPage() {
             return (
               <Card key={v.id} className="overflow-hidden">
                 <div className="h-1.5 w-full bg-gradient-to-r from-brand-500 to-brand-700" />
-                <div className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
+                <div className="p-4 sm:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white dark:bg-[#334155]">
                         <Car className="h-6 w-6" />
                       </div>
@@ -118,7 +118,7 @@ export default function VehiclesPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-3 gap-3">
+                  <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
                     <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                       <div className="flex items-center gap-1.5 text-xs text-slate-500">
                         <Gauge className="h-3.5 w-3.5" />

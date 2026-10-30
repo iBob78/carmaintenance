@@ -159,7 +159,7 @@ function InterventionRow({ r }: { r: ServiceRecord }) {
 // Synthèse complète — visuel « rapport d'entretien »
 // ---------------------------------------------------------------------------
 
-export function VehicleSynthese({ vehicle, db }: { vehicle: Vehicle; db: AppDatabase }) {
+export function VehicleSynthese({ vehicle, db, onShowDues }: { vehicle: Vehicle; db: AppDatabase; onShowDues: () => void }) {
   const s = buildVehicleSynthese(db, vehicle)
 
   const identite = [
@@ -468,9 +468,9 @@ export function VehicleSynthese({ vehicle, db }: { vehicle: Vehicle; db: AppData
             </ul>
             <p className="mt-2 text-[11px] text-amber-700">
               Détail dans l&apos;onglet{' '}
-              <Link href={`/vehicules/${vehicle.id}?tab=echeances`} className="underline decoration-amber-300 underline-offset-2">
+              <button type="button" onClick={onShowDues} className="underline decoration-amber-300 underline-offset-2">
                 Échéances & relevés
-              </Link>
+              </button>
               .
             </p>
           </div>
@@ -484,9 +484,9 @@ export function VehicleSynthese({ vehicle, db }: { vehicle: Vehicle; db: AppData
                 <CheckCircle2 className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-emerald-900">Historique complet et cohérent</p>
+                <p className="text-sm font-semibold text-emerald-900">Historique enregistré</p>
                 <p className="text-xs text-emerald-800">
-                  Les données enregistrées sont complètes et cohérentes dans l&apos;ensemble.
+                  Cette synthèse reflète uniquement les données enregistrées ; elle ne garantit pas leur exhaustivité.
                 </p>
               </div>
             </div>

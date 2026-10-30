@@ -33,7 +33,7 @@ import { todayISO } from '@/lib/domain/format'
 
 export function FormActions({ onCancel, submitLabel = 'Enregistrer' }: { onCancel: () => void; submitLabel?: string }) {
   return (
-    <div className="flex justify-end gap-3 pt-2">
+    <div className="flex flex-wrap justify-end gap-3 pt-2">
       <Button variant="outline" onClick={onCancel}>
         Annuler
       </Button>

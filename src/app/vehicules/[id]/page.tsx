@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ArrowRight,
@@ -43,9 +43,11 @@ import {
 } from '@/components/forms'
 import { ScanPhotoButton, FactureReview } from '@/components/scan'
 import { VehicleSynthese } from '@/components/VehicleSynthese'
+import { VehicleOverview } from '@/components/VehicleOverview'
 import { parseFacture, type FactureScan, type ServicePrefill } from '@/lib/ocr/facture'
 
 const TABS = [
+  { id: 'resume', label: 'Résumé' },
   { id: 'chronologie', label: 'Chronologie' },
   { id: 'entretiens', label: 'Carnet d’entretien' },
   { id: 'pannes', label: 'Pannes & réparations' },
@@ -110,7 +112,11 @@ export default function VehicleDetailPage() {
   const vehicleId = params.id
   const store = useStore()
   const { db, ready } = store
-  const [tab, setTab] = useState('chronologie')
+  const [tab, setTab] = useState('resume')
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab')
+    if (requested && TABS.some((item) => item.id === requested)) setTab(requested)
+  }, [])
 
   // Modales
   const [serviceModal, setServiceModal] = useState<{ open: boolean; editing?: ServiceRecord }>({ open: false })
@@ -161,10 +167,17 @@ export default function VehicleDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Synthèse façon rapport (identification, km, historique, dépenses…) */}
-      <VehicleSynthese vehicle={vehicle} db={db} />
-
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
+
+      {tab === 'resume' && (
+        <section className="space-y-6">
+          <VehicleOverview vehicle={vehicle} db={db} onShowDues={() => setTab('echeances')} onShowHistory={() => setTab('entretiens')} />
+          <details className="rounded-2xl border border-slate-200 bg-white p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-700">Voir la synthèse détaillée du véhicule</summary>
+            <div className="mt-5"><VehicleSynthese vehicle={vehicle} db={db} onShowDues={() => setTab('echeances')} /></div>
+          </details>
+        </section>
+      )}
 
       {/* ---------------------------------------------------------------- */}
       {tab === 'chronologie' && (

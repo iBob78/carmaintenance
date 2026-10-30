@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AppShell } from '@/components/AppShell'
 import { StoreProvider } from '@/lib/data/store'
@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   description:
     "Application open source de gestion automobile : carnet d'entretien, pannes, dépenses, justificatifs et rapport de vente PDF professionnel.",
 }
+
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
