@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* Mode sombre piloté par la classe .dark sur <html> (voir ThemeToggle) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+  border: 2px solid #f1f5f9;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Mode sombre : on ré-inverse les jetons de couleur plutôt que de dupliquer
+   chaque classe. Les surfaces claires deviennent sombres et inversement.
+   Les rares blocs volontairement sombres (barre latérale, onglet actif…) sont
+   ajustés explicitement via des valeurs arbitraires dans les composants.
+   --------------------------------------------------------------------------- */
+.dark {
+  /* Surfaces & bordures */
+  --color-white: #1e293b;
+  --color-slate-50: #0b1220;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  /* slate-300/400 : tons médians lisibles dans les deux thèmes, inchangés */
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+
+  /* Badges & accents : fonds teintés sombres, textes éclaircis */
+  --color-brand-50: #1e1b4b;
+  --color-brand-200: #3730a3;
+  --color-brand-700: #a5b4fc;
+  --color-emerald-50: #052e22;
+  --color-emerald-200: #065f46;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-amber-50: #3b2f04;
+  --color-amber-200: #78350f;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-rose-50: #3f1219;
+  --color-rose-200: #7f1d1d;
+  --color-rose-700: #fda4af;
+  --color-rose-800: #fecdd3;
+  --color-sky-50: #082f49;
+  --color-sky-200: #075985;
+  --color-sky-700: #7dd3fc;
+  --color-sky-800: #bae6fd;
+}
+
+/* text-white est utilisé pour du texte posé sur des fonds sombres : il doit
+   rester blanc même si --color-white devient la surface des cartes. */
+.dark .text-white {
+  color: #ffffff;
+}
+
+html.dark body {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-color: #0b1220;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
